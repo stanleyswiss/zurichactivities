@@ -33,12 +33,8 @@ export async function POST(request: NextRequest) {
         await prisma.$connect();
         await prisma.$executeRaw`SELECT 1`;
         
-        // Try to create a test event to ensure tables exist
-        try {
-          await prisma.event.count();
-        } catch (tableError) {
-          console.log('Tables do not exist, they should be auto-created by Prisma on first use');
-        }
+        // Ensure GeocodeCache table exists
+        await ensureGeocodeCacheTable(prisma);
         
         console.log('Connected using internal URL');
       } else {
@@ -55,13 +51,8 @@ export async function POST(request: NextRequest) {
         await prisma.$connect();
         await prisma.$executeRaw`SELECT 1`;
         
-        // Try to create a test event to ensure tables exist
-        try {
-          const count = await prisma.event.count();
-          console.log(`Event table exists with ${count} records`);
-        } catch (tableError) {
-          console.log('Tables do not exist, they should be auto-created by Prisma on first use');
-        }
+        // Ensure GeocodeCache table exists
+        await ensureGeocodeCacheTable(prisma);
         
         console.log('Connected using public URL');
       } else {
@@ -70,8 +61,8 @@ export async function POST(request: NextRequest) {
     }
     
     return NextResponse.json({ 
-      success: true, 
-      message: 'Database connection successful. Schema should be auto-created by Prisma.',
+      success: true,
+      message: 'Database connection successful. GeocodeCache ensured.',
       url: prisma ? 'Connected successfully' : 'Unknown connection'
     });
   } catch (error) {
@@ -85,4 +76,23 @@ export async function POST(request: NextRequest) {
       await prisma.$disconnect();
     }
   }
+}
+
+export async function GET(request: NextRequest) {
+  // Convenience method to run from browser with ?token=
+  return POST(request);
+}
+
+async function ensureGeocodeCacheTable(prisma: PrismaClient) {
+  // Create table if not exists (case-sensitive to match Prisma model)
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "GeocodeCache" (
+      id TEXT PRIMARY KEY DEFAULT md5(random()::text || clock_timestamp()::text),
+      "addressKey" TEXT NOT NULL UNIQUE,
+      lat DOUBLE PRECISION NOT NULL,
+      lon DOUBLE PRECISION NOT NULL,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
 }
