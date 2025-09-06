@@ -76,7 +76,7 @@ export class ComprehensiveTestScraper {
         lat: location.lat,
         lon: location.lon,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: `https://www.alpabzug-${location.name.toLowerCase()}.ch`
       });
@@ -152,7 +152,7 @@ export class ComprehensiveTestScraper {
         lat: 47.3967,
         lon: 8.4472,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: 'https://m.schlieren.ch/'
       });
@@ -272,7 +272,7 @@ export class ComprehensiveTestScraper {
           lat: market.lat,
           lon: market.lon,
           priceMin: 0,
-          priceMax: null,
+          priceMax: undefined,
           currency: 'CHF'
         });
       });
