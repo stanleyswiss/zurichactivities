@@ -48,7 +48,7 @@ export class ZurichTourismScraper {
         lat: 47.3769,
         lon: 8.5417,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: 'https://www.streetparade.com'
       },
@@ -111,7 +111,7 @@ export class ZurichTourismScraper {
         lat: 47.3668,
         lon: 8.5410,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: 'https://www.zuerich.com/lake-festival'
       }

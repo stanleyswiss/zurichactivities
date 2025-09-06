@@ -86,7 +86,7 @@ export class MunicipalScraper {
         lat: config.lat,
         lon: config.lon,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: config.url
       }
@@ -135,7 +135,7 @@ export class MunicipalScraper {
         lat: config.lat,
         lon: config.lon,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: 'https://www.dietikon.ch/sommerfest'
       });

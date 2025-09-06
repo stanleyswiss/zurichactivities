@@ -24,7 +24,7 @@ export class TestScraper {
         lat: 47.3967,
         lon: 8.4472,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: 'https://www.schlieren.ch/events'
       },
@@ -45,7 +45,7 @@ export class TestScraper {
         lat: 47.4017,
         lon: 8.4008,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: 'https://www.dietikon.ch/stadtfest'
       },
@@ -66,10 +66,10 @@ export class TestScraper {
         lat: 47.396,
         lon: 8.447,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: 'https://www.schlieren.ch/weihnachtsmarkt',
-        imageUrl: null
+        imageUrl: undefined
       },
       {
         source: SOURCES.LIMMATTAL,
@@ -91,7 +91,7 @@ export class TestScraper {
         priceMax: 25,
         currency: 'CHF',
         url: 'https://www.dietikon.ch/events',
-        imageUrl: null
+        imageUrl: undefined
       },
       {
         source: SOURCES.ST,
@@ -110,10 +110,10 @@ export class TestScraper {
         lat: 47.3769,
         lon: 8.5417,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: 'https://www.zuerich.com/herbstfest',
-        imageUrl: null
+        imageUrl: undefined
       },
       {
         source: SOURCES.LIMMATTAL,
@@ -135,7 +135,7 @@ export class TestScraper {
         priceMax: 12,
         currency: 'CHF',
         url: 'https://www.urdorf.ch/kultur',
-        imageUrl: null
+        imageUrl: undefined
       },
       {
         source: SOURCES.ST,
@@ -154,10 +154,10 @@ export class TestScraper {
         lat: 47.4122,
         lon: 8.4503,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
-        url: null,
-        imageUrl: null
+        url: undefined,
+        imageUrl: undefined
       },
       // Regional events (50km radius)
       {
@@ -177,7 +177,7 @@ export class TestScraper {
         lat: 47.5584,
         lon: 7.5887,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: 'https://www.basel.com/herbstmesse'
       },
@@ -198,7 +198,7 @@ export class TestScraper {
         lat: 47.0505,
         lon: 8.3064,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: 'https://www.luzern.com/fasnacht'
       },
@@ -220,7 +220,7 @@ export class TestScraper {
         lat: 47.3302,
         lon: 9.4095,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: 'https://www.appenzell.ch/alpabzug'
       },
@@ -241,7 +241,7 @@ export class TestScraper {
         lat: 46.9481,
         lon: 7.4474,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: 'https://www.bern.com/zibelemarit'
       },
@@ -284,7 +284,7 @@ export class TestScraper {
         lat: 47.4122,
         lon: 8.4503,
         priceMin: 0,
-        priceMax: null,
+        priceMax: undefined,
         currency: 'CHF',
         url: 'https://www.oberengstringen.ch/gemeindeversammlung'
       }
