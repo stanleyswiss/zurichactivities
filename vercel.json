@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "src/app/api/**": {
+      "maxDuration": 30
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/scrape",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
