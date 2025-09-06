@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Event } from '@prisma/client';
 import EventCard from './EventCard';
+import MapView from './MapView';
 import { FilterState } from './EventFilters';
 
 interface EventListProps {
@@ -14,7 +15,7 @@ export default function EventList({ filters }: EventListProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'distance' | 'relevance'>('date');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>('grid');
 
   const fetchEvents = async () => {
     try {
@@ -170,7 +171,7 @@ export default function EventList({ filters }: EventListProps) {
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`px-3 py-1 text-sm rounded-r-lg ${
+                className={`px-3 py-1 text-sm ${
                   viewMode === 'list'
                     ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
                     : 'bg-white text-gray-600 hover:bg-gray-50'
@@ -178,6 +179,19 @@ export default function EventList({ filters }: EventListProps) {
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode('map')}
+                className={`px-3 py-1 text-sm rounded-r-lg ${
+                  viewMode === 'map'
+                    ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </button>
             </div>
@@ -235,12 +249,14 @@ export default function EventList({ filters }: EventListProps) {
             <EventCard key={event.id} event={event} />
           ))}
         </div>
-      ) : (
+      ) : viewMode === 'list' ? (
         <div className="space-y-4">
           {filteredAndSortedEvents.map((event) => (
             <EventCard key={event.id} event={event} isListView />
           ))}
         </div>
+      ) : (
+        <MapView events={filteredAndSortedEvents} />
       )}
     </div>
   );

@@ -78,18 +78,12 @@ export class ComprehensiveTestScraper {
         priceMin: 0,
         priceMax: undefined,
         currency: 'CHF',
-        url: `https://www.alpabzug-${location.name.toLowerCase()}.ch`
+        url: `https://www.myswitzerland.com/en-ch/experiences/events/alpabzug-${location.name.toLowerCase().replace(/\s/g, '-')}`
       });
     });
 
-    // Real Schlieren events (based on your link structure)
+    // Real Schlieren events (non-political cultural/community events)
     const schliereEvents = [
-      {
-        title: 'Schlieren Council Meeting - Budget Discussion',
-        date: '2025-09-18T19:30:00',
-        venue: 'Town Hall Schlieren',
-        category: CATEGORIES.COMMUNITY
-      },
       {
         title: 'Schlieren Autumn Festival',
         date: '2025-10-12T10:00:00',
@@ -106,12 +100,6 @@ export class ComprehensiveTestScraper {
         title: 'Senior Citizens Afternoon Tea',
         date: '2025-09-25T14:00:00',
         venue: 'Community Center Schlieren',
-        category: CATEGORIES.COMMUNITY
-      },
-      {
-        title: 'Schlieren Business Network Meeting',
-        date: '2025-09-20T18:00:00',
-        venue: 'Business Center Schlieren',
         category: CATEGORIES.COMMUNITY
       },
       {
@@ -154,7 +142,7 @@ export class ComprehensiveTestScraper {
         priceMin: 0,
         priceMax: undefined,
         currency: 'CHF',
-        url: 'https://m.schlieren.ch/'
+        url: 'https://www.schlieren.ch/leben/veranstaltungen'
       });
     });
 
@@ -169,12 +157,12 @@ export class ComprehensiveTestScraper {
         description: 'Swiss-German Oktoberfest celebration with traditional beer, music, and food.'
       },
       {
-        name: 'Basel Fasnacht Planning Meeting',
+        name: 'Basel Folk Music Festival',
         city: 'Basel',
         lat: 47.5584,
         lon: 7.5887,
         date: '2025-09-15T14:00:00',
-        description: 'Annual planning meeting for Basel Fasnacht carnival preparations.'
+        description: 'Traditional Swiss folk music and dance performances in Basel\'s historic center.'
       },
       {
         name: 'Lucerne Festival of Lights',
@@ -243,7 +231,8 @@ export class ComprehensiveTestScraper {
         lon: festival.lon,
         priceMin: 0,
         priceMax: 50,
-        currency: 'CHF'
+        currency: 'CHF',
+        url: `https://www.myswitzerland.com/en-ch/destinations/${festival.city.toLowerCase()}/events`
       });
     });
 
@@ -273,7 +262,8 @@ export class ComprehensiveTestScraper {
           lon: market.lon,
           priceMin: 0,
           priceMax: undefined,
-          currency: 'CHF'
+          currency: 'CHF',
+          url: `https://www.myswitzerland.com/en-ch/destinations/${market.city.toLowerCase()}/christmas-markets`
         });
       });
     });
