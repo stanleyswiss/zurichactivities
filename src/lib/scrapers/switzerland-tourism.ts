@@ -86,7 +86,7 @@ export class SwitzerlandTourismScraper {
     url.searchParams.append('bbox', bbox);
     url.searchParams.append('lang', process.env.ST_LANG || 'de');
     url.searchParams.append('limit', process.env.ST_LIMIT || '100');
-    url.searchParams.append('from', new Date().toISOString().split('T')[0]);
+    // Some deployments may not support date filters; omit for broad results
 
     const response = await fetch(url.toString(), {
       headers: {
@@ -101,17 +101,33 @@ export class SwitzerlandTourismScraper {
     }
 
     const data = await response.json();
-    const events: SwitzerlandTourismEvent[] = Array.isArray(data) ? data : (data.events || []);
-    const rawEvents: RawEvent[] = [];
-    for (const event of events) {
-      try {
-        const raw = await this.transformEvent(event);
-        if (raw) rawEvents.push(raw);
-      } catch (e) {
-        console.error('Error transforming ST event (GET):', (event as any)?.id, e);
+    // Attempt to normalize common shapes: array | {events} | {data} | {value} | {items} | {results}
+    let items: any[] = [];
+    if (Array.isArray(data)) {
+      items = data;
+    } else if (data) {
+      items = data.events || data.data || data.value || data.items || data.results || [];
+      // Some payloads nest under data.data
+      if (!Array.isArray(items) && data.data && Array.isArray(data.data.data)) {
+        items = data.data.data;
       }
     }
-    console.log(`Switzerland Tourism (GET): ${rawEvents.length} events`);
+    console.log('Switzerland Tourism (GET) payload keys:', Object.keys(data || {}), 'arrayLen:', Array.isArray(items) ? items.length : 0);
+    const rawEvents: RawEvent[] = [];
+    for (const node of items as any[]) {
+      try {
+        if (node && (node.startDate || node.endDate)) {
+          const raw = await this.transformEvent(node as SwitzerlandTourismEvent);
+          if (raw) rawEvents.push(raw);
+        } else {
+          const ra = await this.transformAttraction(node);
+          if (ra) rawEvents.push(ra);
+        }
+      } catch (e) {
+        console.error('Error transforming ST item (GET):', (node as any)?.id || (node as any)?.identifier, e);
+      }
+    }
+    console.log(`Switzerland Tourism (GET): ${rawEvents.length} items mapped`);
     return rawEvents;
   }
 
@@ -159,6 +175,74 @@ export class SwitzerlandTourismScraper {
     }
     console.log(`Switzerland Tourism (POST search): ${rawEvents.length} events`);
     return rawEvents;
+  }
+
+  // Map TouristAttraction-like nodes to our RawEvent model when Events feed is unavailable
+  private async transformAttraction(node: any): Promise<RawEvent | null> {
+    if (!node) return null;
+    const title: string | undefined = node.name || node.title;
+    if (!title) return null;
+
+    // Heuristic: include only if current month/season appears in classifications to keep it relevant
+    const classifications = Array.isArray(node.classification) ? node.classification : [];
+    const now = new Date();
+    const monthNames = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const currentMonth = monthNames[now.getMonth()];
+    const seasonNames = ['winter','spring','summer','autumn'];
+    const currentSeason = seasonNames[Math.floor(((now.getMonth()+1)%12)/3)];
+    let timeRelevant = false;
+    for (const c of classifications) {
+      const name = (c?.name || '').toLowerCase();
+      const values: any[] = c?.values || [];
+      const valueNames = values.map(v => (v?.name || '').toLowerCase());
+      if (name === 'month' && (valueNames.includes(currentMonth) || valueNames.includes('allyear'))) timeRelevant = true;
+      if (name === 'seasons' && (valueNames.includes(currentSeason) || valueNames.includes('allyear'))) timeRelevant = true;
+    }
+    if (!timeRelevant && classifications.length > 0) return null;
+
+    const description: string | undefined = node.abstract || node.description;
+    const url: string | undefined = node.url || node.links?.self;
+    const imageUrl: string | undefined = node.photo || node.image?.url || (Array.isArray(node.image) ? node.image[0] : undefined);
+    const lat: number | undefined = node.geo?.latitude;
+    const lon: number | undefined = node.geo?.longitude;
+
+    // Category inference
+    let category: string | undefined;
+    for (const c of classifications) {
+      const name = (c?.name || '').toLowerCase();
+      const values: any[] = c?.values || [];
+      const combined = [name, ...values.map((v: any) => (v?.name || v?.title || '').toLowerCase())].join(' ');
+      if (!category) {
+        if (combined.includes('culture') || combined.includes('museum') || combined.includes('kultur')) category = CATEGORIES.CULTURE;
+        else if (combined.includes('family') || combined.includes('famil')) category = CATEGORIES.FAMILY;
+        else if (combined.includes('market') || combined.includes('markt')) category = CATEGORIES.MARKET;
+        else if (combined.includes('sport') || combined.includes('active')) category = CATEGORIES.SPORTS;
+        else if (combined.includes('nature')) category = CATEGORIES.SEASONAL;
+      }
+    }
+
+    return {
+      source: SOURCES.ST,
+      sourceEventId: node.identifier || url,
+      title,
+      description,
+      lang: process.env.ST_LANG || 'de',
+      category,
+      startTime: now, // treat as currently available activity
+      endTime: undefined,
+      venueName: undefined,
+      street: undefined,
+      postalCode: undefined,
+      city: undefined,
+      country: 'CH',
+      lat,
+      lon,
+      priceMin: undefined,
+      priceMax: undefined,
+      currency: 'CHF',
+      url,
+      imageUrl
+    };
   }
 
   private async transformEvent(event: SwitzerlandTourismEvent): Promise<RawEvent | null> {

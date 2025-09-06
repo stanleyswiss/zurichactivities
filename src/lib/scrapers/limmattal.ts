@@ -23,6 +23,7 @@ export class LimmattalScraper {
       // Try JSON-LD on listing page (in case events are embedded)
       const ld = extractJsonLd(html);
       let events: RawEvent[] = await jsonLdToRawEvents(ld, SOURCES.LIMMATTAL, 'de');
+      console.log('Limmattal listing JSON-LD count:', ld.length, 'events from JSON-LD:', events.length);
 
       // If listing page lacks events, visit detail pages and extract JSON-LD from each
       if (events.length === 0) {
@@ -37,6 +38,7 @@ export class LimmattalScraper {
           }
         });
 
+        console.log('Limmattal detail links found:', detailLinks.size);
         const cap = Math.min(detailLinks.size, 30);
         const links = Array.from(detailLinks).slice(0, cap);
         for (const link of links) {
