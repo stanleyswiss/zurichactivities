@@ -11,6 +11,8 @@ interface ScrapeResult {
 }
 
 function isAuthorized(request: NextRequest) {
+  // Allow public scraping if explicitly enabled for UI testing
+  if (process.env.SCRAPE_PUBLIC === 'true') return true;
   const token = process.env.SCRAPE_TOKEN;
   // Allow Vercel Cron GETs (has x-vercel-cron header)
   const isVercelCron = request.headers.has('x-vercel-cron');

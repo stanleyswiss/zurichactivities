@@ -128,6 +128,13 @@ npm run db:studio
 ### Scraping
 The system automatically scrapes events daily at 6 AM. For manual scraping, use the admin panel in the UI or call the API directly.
 
+Admin endpoints (protected by SCRAPE_TOKEN):
+- `GET /api/migrate?token=...` ensures the GeocodeCache table exists.
+- `GET /api/admin/reset?token=...&clearCache=1` clears events (and cache if requested) and re-scrapes real sources.
+
+Testing the UI Update button:
+- Temporarily set `SCRAPE_PUBLIC=true` in Vercel env to allow the UI button to trigger `/api/scrape` without a token. Turn off afterwards.
+
 ## Environment Variables
 
 ```env
@@ -146,6 +153,7 @@ NEXT_PUBLIC_SCHLIEREN_LON="8.447"
 
 # Admin/auth
 SCRAPE_TOKEN="your_admin_token" # optional: required for /api/migrate and /api/scrape if set
+SCRAPE_PUBLIC="false"           # set to "true" to let the UI Update button call /api/scrape without a token (testing only)
 ```
 
 ## Deployment

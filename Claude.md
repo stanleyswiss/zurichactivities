@@ -116,6 +116,7 @@ NEXT_PUBLIC_SCHLIEREN_LON="8.447"
 SCRAPE_TOKEN="<admin_token_optional>"     # required for /api/migrate; used by /api/scrape if set
 NOMINATIM_EMAIL="you@example.com"         # optional, appended to UA for geocoding
 GEOCODE_CACHE_TTL_DAYS="365"             # optional cache TTL in days
+SCRAPE_PUBLIC="false"                    # if "true", allow UI to trigger /api/scrape without token (testing only)
 ```
 
 ## Core Scrapers
@@ -348,6 +349,7 @@ export const CATEGORIES = {
 - Re-enable Zurich/Municipal only with real scrapers (no sample data) and apply content filter.
 - Add “Family Weekend” preset (<=50km, categories: familie/kultur/festival) and enable pagination in `/api/events`.
 - Optional: move scraping to Railway worker if durations or rate limits exceed Vercel constraints.
+- Add server-side UI trigger or temporary SCRAPE_PUBLIC toggle documented for testing.
 
 ## Admin Token Setup
 - Set `SCRAPE_TOKEN` in Vercel env to a long random string (32–64 chars). Examples to generate locally:
@@ -357,3 +359,5 @@ export const CATEGORIES = {
   - `POST /api/scrape` with header `Authorization: Bearer <SCRAPE_TOKEN>` (body: `{ "sources": ["ST","LIMMATTAL"], "force": false }`)
 - Create cache table (one-time):
   - Open in browser: `/api/migrate?token=<SCRAPE_TOKEN>` (returns success if created)
+- Reset events and re-scrape:
+  - Open in browser: `/api/admin/reset?token=<SCRAPE_TOKEN>&clearCache=1` (optional clearCache)
