@@ -1,4 +1,6 @@
 {
+  "buildCommand": "yarn build",
+  "installCommand": "yarn install",
   "functions": {
     "src/app/api/**": {
       "maxDuration": 30
@@ -9,5 +11,5 @@
       "path": "/api/scrape",
       "schedule": "0 6 * * *"
     }
-  ],
+  ]
 }
