@@ -68,8 +68,9 @@ export class LimmattalScraper {
 
       // Fallback: look for date patterns and event titles
       if (events.length === 0) {
-        $('*').each((_, element) => {
-          const text = $(element).text().trim();
+        const $f = cheerio.load(html);
+        $f('*').each((_, element) => {
+          const text = $f(element).text().trim();
           const hasDate = /\d{1,2}\.\d{1,2}\.\d{4}|\d{1,2}\s+(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)/i.test(text);
           const hasTime = /\d{1,2}[:\.]\d{2}/.test(text);
           
