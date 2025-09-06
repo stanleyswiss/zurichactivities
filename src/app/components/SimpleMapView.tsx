@@ -114,7 +114,7 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
 
   return (
     <div className="w-full h-full relative">
-      {/* Interactive Google Maps Embed */}
+      {/* Single Interactive Google Maps with Custom Markers */}
       <iframe
         src={createInteractiveMapUrl()}
         width="100%"
@@ -126,19 +126,9 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
         className="w-full h-full"
       />
       
-      {/* Static Map Overlay with Markers (positioned over interactive map) */}
-      <div className="absolute inset-0 pointer-events-none">
-        <img
-          src={createStaticMapUrl()}
-          alt="Event Markers"
-          className="w-full h-full object-cover rounded-lg opacity-80"
-          style={{ mixBlendMode: 'multiply' }}
-        />
-      </div>
-      
       {/* Map Legend */}
       <div className="absolute top-4 left-4 bg-white bg-opacity-95 rounded-lg p-3 shadow-lg z-10">
-        <h4 className="text-sm font-semibold text-gray-900 mb-2">Event Markers</h4>
+        <h4 className="text-sm font-semibold text-gray-900 mb-2">Event Locations</h4>
         <div className="space-y-1 text-xs">
           <div className="flex items-center">
             <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
@@ -157,7 +147,7 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
             <span>Markets</span>
           </div>
           <div className="text-gray-500 mt-2">
-            {eventsWithCoords.length} events with markers
+            {eventsWithCoords.length} events shown
           </div>
         </div>
       </div>
@@ -171,7 +161,7 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
           className="inline-flex items-center px-3 py-2 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-lg shadow-lg text-sm font-medium text-gray-900 transition-all"
         >
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002 2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
           Full Screen
         </a>

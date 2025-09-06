@@ -9,5 +9,16 @@
       "path": "/api/scrape",
       "schedule": "0 6 * * *"
     }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Permissions-Policy",
+          "value": "browsing-topics=(), interest-cohort=()"
+        }
+      ]
+    }
   ]
 }
