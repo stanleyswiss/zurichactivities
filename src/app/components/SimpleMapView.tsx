@@ -35,15 +35,16 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
 
   const getMarkerColor = (category?: string | null) => {
     if (!category) return 'red';
-    
-    switch (category) {
+    const val = category.toLowerCase();
+    switch (val) {
       case 'alpsabzug': return 'orange';
       case 'festival': return 'purple';
       case 'musik': return 'pink';
-      case 'market': return 'green';
-      case 'family': return 'blue';
+      case 'markt': return 'green';
+      case 'familie': return 'blue';
       case 'sport': return 'red';
       case 'kultur': return 'yellow';
+      case 'saisonal': return 'blue';
       default: return 'red';
     }
   };

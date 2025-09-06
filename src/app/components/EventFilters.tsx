@@ -19,8 +19,7 @@ const SOURCE_LABELS = {
   [SOURCES.ST]: 'Switzerland Tourism',
   [SOURCES.LIMMATTAL]: 'Limmattal Regional',
   [SOURCES.ZURICH]: 'Zurich Tourism',
-  [SOURCES.MUNICIPAL]: 'Municipal',
-  'COMPREHENSIVE': 'All Sources'
+  [SOURCES.MUNICIPAL]: 'Municipal'
 } as const;
 
 interface EventFiltersProps {
@@ -286,7 +285,7 @@ export default function EventFilters({ onFilterChange }: EventFiltersProps) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Sources</label>
               <div className="flex flex-wrap gap-2">
-                {[...Object.values(SOURCES), 'COMPREHENSIVE'].map((source) => (
+                {Object.values(SOURCES).map((source) => (
                   <button
                     key={source}
                     onClick={() => toggleSource(source)}

@@ -72,7 +72,9 @@ export class LimmattalScraper {
     const dateStr = this.extractText($, element, '.date, .event-date, .datum, time');
     const timeStr = this.extractText($, element, '.time, .event-time, .zeit');
     const venue = this.extractText($, element, '.venue, .location, .ort, .veranstaltungsort');
-    const url = element.find('a').first().attr('href');
+    // Prefer detail links that look like event detail pages
+    let url = element.find('a[href*="veranstaltungen"], a[href*="event"], a[href*="events"]').first().attr('href')
+      || element.find('a').first().attr('href');
 
     const startTime = this.parseDateTime(dateStr, timeStr);
     if (!startTime) return null;
@@ -106,7 +108,7 @@ export class LimmattalScraper {
       country: 'CH',
       lat,
       lon,
-      url: url?.startsWith('http') ? url : url ? `https://www.limmatstadt.ch${url}` : undefined
+      url: url ? (url.startsWith('http') ? url : `https://www.limmatstadt.ch${url}`) : undefined
     };
   }
 

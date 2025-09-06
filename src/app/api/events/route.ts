@@ -14,8 +14,9 @@ export async function GET(request: NextRequest) {
     const lat = parseFloat(searchParams.get('lat') || process.env.NEXT_PUBLIC_SCHLIEREN_LAT || '47.396');
     const lon = parseFloat(searchParams.get('lon') || process.env.NEXT_PUBLIC_SCHLIEREN_LON || '8.447');
     const radius = parseFloat(searchParams.get('radius') || '100');
-    const category = searchParams.get('category');
-    const source = searchParams.get('source');
+    // Support multi-select filters
+    const categories = searchParams.getAll('category').filter(Boolean);
+    const sources = searchParams.getAll('source').filter(s => s !== 'COMPREHENSIVE');
     const lang = searchParams.get('lang') || 'de';
 
     // Build where clause
@@ -26,12 +27,12 @@ export async function GET(request: NextRequest) {
       }
     };
 
-    if (category) {
-      whereClause.category = category;
+    if (categories.length > 0) {
+      whereClause.category = { in: categories };
     }
 
-    if (source) {
-      whereClause.source = source;
+    if (sources.length > 0) {
+      whereClause.source = { in: sources };
     }
 
     if (lang) {

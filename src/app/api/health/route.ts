@@ -85,10 +85,10 @@ export async function GET() {
         last_run: {
           ST: 'Not tracked yet',
           LIMMATTAL: 'Not tracked yet',
-          ZURICH: 'Not implemented',
-          MUNICIPAL: 'Not implemented'
+          ZURICH: 'Not tracked yet',
+          MUNICIPAL: 'Not tracked yet'
         },
-        next_scheduled_run: 'Daily at 6:00 AM'
+        next_scheduled_run: 'Vercel Cron: Daily at 6:00 AM'
       }
     });
   } catch (error) {

@@ -10,9 +10,9 @@
 
 ## API Key & Rate Limits
 ```
-Switzerland Tourism API Key: TaX5CpphzS32bCUNPAfog465D6RtYgO1191X2CZ2
+Switzerland Tourism API Key: (set ST_API_KEY env var; do not commit)
 Header: x-api-key
-Limits: 1 req/s (10 req/s burst), 1000 req/day
+Limits: 1 req/s (10 req/s burst), 1000 req/day (provider dependent)
 ```
 
 ## Tech Stack
@@ -68,8 +68,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Event {
@@ -106,13 +106,14 @@ model Event {
 }
 ```
 
-## Environment Variables (.env.local)
+## Environment Variables (.env.local / Vercel)
 ```
-DATABASE_URL="file:./dev.db"
-ST_API_KEY="TaX5CpphzS32bCUNPAfog465D6RtYgO1191X2CZ2"
+DATABASE_URL="postgres://..."             # Railway connection
+DATABASE_PUBLIC_URL="postgres://..."       # Pooled/public URL for Vercel
+ST_API_KEY="<your_key>"                   # set in env only
 NEXT_PUBLIC_SCHLIEREN_LAT="47.396"
 NEXT_PUBLIC_SCHLIEREN_LON="8.447"
-SCRAPE_INTERVAL_HOURS="24"
+SCRAPE_TOKEN="<admin_token_optional>"     # required for /api/migrate; used by /api/scrape if set
 ```
 
 ## Core Scrapers
@@ -230,22 +231,8 @@ Returns scraper status, last run times, event counts per source.
 - Infinite scroll
 - Sort options: Date, Distance, Relevance
 
-## Scheduler (`lib/scheduler.ts`)
-```typescript
-import cron from 'node-cron';
-
-// Daily at 6 AM
-cron.schedule('0 6 * * *', async () => {
-  await runAllScrapers();
-});
-
-// On-demand trigger via API
-export async function runAllScrapers(sources?: string[]) {
-  // Execute scrapers with error handling
-  // Update last_run timestamps
-  // Log metrics
-}
-```
+## Scheduler & Cron
+On Vercel, the in-process cron is disabled; use Vercel Cron (see vercel.json) which calls `GET /api/scrape` daily. The `/api/scrape` route now supports GET (for Vercel Cron) and POST (for manual/admin triggers) and accepts an optional `SCRAPE_TOKEN`.
 
 ## Priority Categories
 ```typescript
@@ -324,9 +311,9 @@ export const CATEGORIES = {
 ## 🎯 NEXT DEVELOPMENT PRIORITIES (Future Sessions)
 
 1. **Real API Endpoints** (High Priority):
-   - Fix Switzerland Tourism API URL (current endpoint doesn't exist)
-   - Implement JavaScript-capable scraping for Limmattal site
-   - Connect to real Schlieren municipal API (not just sample data)
+   - Verify Switzerland Tourism API endpoint and data model
+   - Implement JavaScript-capable scraping for Limmattal site (Playwright), respecting robots and ToS
+   - Connect to real municipal sources (replace sample data)
 
 2. **Enhanced Features** (Medium Priority):
    - Email notifications for new events
@@ -346,4 +333,12 @@ export const CATEGORIES = {
 - **Municipal Data**: Currently sample data (need real municipal APIs)
 - **Rate Limiting**: Implemented but not tested with real high-volume usage
 
-**System is fully functional with test data and ready for real API integration.**
+**System is functional with test data, content filtering, Cron GET, and ready for real API integration.**
+
+## Changes (Sept 2025)
+- Removed hardcoded API key from docs; require `ST_API_KEY` in env.
+- Added GET handler + auth to `/api/scrape`; accepts `x-vercel-cron` header.
+- Disabled node-cron scheduling on Vercel; rely on Vercel Cron.
+- Added political/administrative filter (drops Gemeindeversammlung, Wahlen, etc.).
+- Fixed multi-select handling in `/api/events` (category/source `in` filters).
+- UI: removed "COMPREHENSIVE" from source filters; corrected map colors for DE categories; event card shows source hostname.

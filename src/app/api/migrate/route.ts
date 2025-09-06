@@ -1,7 +1,21 @@
 import { PrismaClient } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 
+function isAuthorized(request: NextRequest) {
+  const token = process.env.SCRAPE_TOKEN;
+  if (!token) return false; // require token for this endpoint
+  const auth = request.headers.get('authorization');
+  if (auth && auth.startsWith('Bearer ')) {
+    return auth.slice(7) === token;
+  }
+  const urlToken = request.nextUrl.searchParams.get('token');
+  return urlToken === token;
+}
+
 export async function POST(request: NextRequest) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   let prisma: PrismaClient | null = null;
   
   try {

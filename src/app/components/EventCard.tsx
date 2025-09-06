@@ -236,6 +236,18 @@ export default function EventCard({ event, isListView = false }: EventCardProps)
             </a>
           )}
         </div>
+        {event.url && (
+          <span className="text-xs text-gray-400 truncate max-w-[160px] text-right" title={event.url}>
+            {(() => {
+              try {
+                const u = new URL(event.url!);
+                return u.hostname.replace('www.', '');
+              } catch {
+                return '';
+              }
+            })()}
+          </span>
+        )}
       </div>
     </div>
   );

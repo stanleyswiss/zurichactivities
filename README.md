@@ -26,7 +26,7 @@ A Next.js dashboard that aggregates events and activities near Schlieren, ZH fro
 ### Prerequisites
 
 - Node.js 18+ and npm/yarn
-- Swiss Tourism API key (provided in Claude.md)
+- Swiss Tourism API key (set as env var, do not commit)
 
 ### Installation
 
@@ -131,21 +131,29 @@ The system automatically scrapes events daily at 6 AM. For manual scraping, use 
 ## Environment Variables
 
 ```env
-DATABASE_URL="file:./dev.db"
+# Database (PostgreSQL on Railway)
+DATABASE_URL="postgres://..."
+DATABASE_PUBLIC_URL="postgres://..." # pooled/public URL recommended for Vercel
+
+# Upstream APIs (do not commit secrets)
 ST_API_KEY="your_switzerland_tourism_api_key"
+
+# App config
 NEXT_PUBLIC_SCHLIEREN_LAT="47.396"
 NEXT_PUBLIC_SCHLIEREN_LON="8.447"
-SCRAPE_INTERVAL_HOURS="24"
+
+# Admin/auth
+SCRAPE_TOKEN="your_admin_token" # optional: required for /api/migrate and /api/scrape if set
 ```
 
 ## Deployment
 
 For production deployment:
 
-1. Update `DATABASE_URL` to PostgreSQL connection string
-2. Set up proper environment variables
-3. Run database migrations
-4. Deploy to your platform of choice (Vercel, Railway, etc.)
+1. Use Railway Postgres; set `DATABASE_URL` and `DATABASE_PUBLIC_URL` in Vercel
+2. Set `ST_API_KEY` and optionally `SCRAPE_TOKEN` in Vercel (never in repo)
+3. Run Prisma migrations or `db push` from CI/local against Railway
+4. Deploy frontend on Vercel; Vercel Cron will call `GET /api/scrape` daily
 
 ## Contributing
 

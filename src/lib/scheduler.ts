@@ -27,13 +27,18 @@ export class EventScheduler {
   }
 
   private initializeScheduler() {
-    // Daily at 6 AM
+    // Avoid in-Lambda cron in Vercel; rely on Vercel Cron instead
+    const runningOnVercel = !!process.env.VERCEL;
+    if (runningOnVercel) {
+      console.log('Vercel environment detected: internal cron disabled. Use Vercel Cron.');
+      return;
+    }
+    // Daily at 6 AM (for non-serverless/local usage)
     cron.schedule('0 6 * * *', async () => {
       console.log('Running scheduled scrape at', new Date());
       await this.runAllScrapers();
     });
-
-    console.log('Event scheduler initialized - will run daily at 6:00 AM');
+    console.log('Event scheduler initialized - will run daily at 6:00 AM (non-Vercel)');
   }
 
   async runAllScrapers(sources?: string[], force: boolean = false): Promise<ScraperResult[]> {
@@ -123,6 +128,10 @@ export class EventScheduler {
 
     for (const event of events) {
       try {
+        // Content filter: drop political/administrative events and unwanted entries
+        if (!this.isAllowedEvent(event)) {
+          continue;
+        }
         const uniquenessHash = generateUniquenessHash(event);
         const titleNorm = normalizeTitle(event.title);
 
@@ -162,6 +171,21 @@ export class EventScheduler {
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Basic content filtering: exclude political/administrative items; optionally allowlist categories
+  private isAllowedEvent(event: RawEvent): boolean {
+    const text = `${event.title} ${event.description ?? ''}`.toLowerCase();
+    const blocklist = [
+      'gemeindeversammlung', 'abstimmung', 'wahlen', 'wahl', 'politik', 'politisch',
+      'stadtrat', 'gemeinderat', 'einwohnerrat', 'parlament', 'parteitag', 'versammlung der partei',
+      'behörde', 'amt', 'verordnung', 'amtliche', 'sitzung'
+    ];
+    if (blocklist.some(word => text.includes(word))) return false;
+
+    // If category exists and is one of the known categories, allow
+    // Otherwise, allow by default to not over-prune; scrapers should set category
+    return true;
   }
 
   getStatus() {
