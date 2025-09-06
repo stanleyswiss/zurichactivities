@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { RawEvent, SOURCES, CATEGORIES } from '@/types/event';
 import { geocodeAddress, formatSwissAddress } from '@/lib/utils/geocoding';
+import { extractJsonLd, jsonLdToRawEvents } from '@/lib/utils/jsonld';
 
 export class LimmattalScraper {
   private baseUrl = 'https://www.limmatstadt.ch/veranstaltungen';
@@ -18,21 +19,50 @@ export class LimmattalScraper {
       }
 
       const html = await response.text();
-      const $ = cheerio.load(html);
-      
-      const events: RawEvent[] = [];
-      
-      // Look for common event container patterns
-      const eventElements = $('.event, .veranstaltung, .event-item, [class*="event"]').toArray();
-      
-      for (const element of eventElements) {
-        try {
-          const event = await this.parseEvent($, $(element));
-          if (event) {
-            events.push(event);
+
+      // Try JSON-LD on listing page (in case events are embedded)
+      const ld = extractJsonLd(html);
+      let events: RawEvent[] = await jsonLdToRawEvents(ld, SOURCES.LIMMATTAL, 'de');
+
+      // If listing page lacks events, visit detail pages and extract JSON-LD from each
+      if (events.length === 0) {
+        const $ = cheerio.load(html);
+        const detailLinks = new Set<string>();
+        $('a[href]').each((_, el) => {
+          const href = $(el).attr('href');
+          if (!href) return;
+          if (/veranstaltungen|event|events/i.test(href)) {
+            const abs = href.startsWith('http') ? href : `https://www.limmatstadt.ch${href}`;
+            detailLinks.add(abs.split('#')[0]);
           }
-        } catch (error) {
-          console.error('Error parsing Limmattal event:', error);
+        });
+
+        const cap = Math.min(detailLinks.size, 30);
+        const links = Array.from(detailLinks).slice(0, cap);
+        for (const link of links) {
+          try {
+            await this.delay(600); // be gentle
+            const r = await fetch(link, { headers: { 'User-Agent': 'SwissActivitiesDashboard/1.0' } });
+            if (!r.ok) continue;
+            const page = await r.text();
+            const ld2 = extractJsonLd(page);
+            const ev = await jsonLdToRawEvents(ld2, SOURCES.LIMMATTAL, 'de');
+            // If JSON-LD not present, fallback to legacy parse
+            if (ev.length > 0) {
+              // Attach canonical URL when missing
+              ev.forEach(e => { if (!e.url) e.url = link; });
+              events.push(...ev);
+            } else {
+              const $d = cheerio.load(page);
+              const parsed = await this.parseEvent($d, $d('body'));
+              if (parsed) {
+                parsed.url = parsed.url || link;
+                events.push(parsed);
+              }
+            }
+          } catch (e) {
+            console.error('Limmattal detail fetch error:', e);
+          }
         }
       }
 
@@ -62,6 +92,10 @@ export class LimmattalScraper {
       console.error('Limmattal scraper error:', error);
       return [];
     }
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(res => setTimeout(res, ms));
   }
 
   private async parseEvent($: cheerio.CheerioAPI, element: cheerio.Cheerio<any>): Promise<RawEvent | null> {

@@ -144,6 +144,27 @@ export default function EventFilters({ onFilterChange }: EventFiltersProps) {
     }
   };
 
+  const setFamilyWeekend = () => {
+    const now = new Date();
+    const day = now.getDay();
+    const saturday = new Date(now);
+    const daysToSat = (6 - day + 7) % 7; // 6 = Saturday
+    saturday.setDate(now.getDate() + daysToSat);
+    const sunday = new Date(saturday);
+    sunday.setDate(saturday.getDate() + 1);
+
+    setFilters(prev => ({
+      ...prev,
+      dateRange: {
+        from: saturday.toISOString().split('T')[0],
+        to: sunday.toISOString().split('T')[0]
+      },
+      distance: 50,
+      categories: [CATEGORIES.FAMILY, CATEGORIES.CULTURE, CATEGORIES.FESTIVAL],
+      freeOnly: false
+    }));
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
       <div className="flex flex-col space-y-4">
@@ -186,6 +207,12 @@ export default function EventFilters({ onFilterChange }: EventFiltersProps) {
               }`}
             >
               Free
+            </button>
+            <button
+              onClick={setFamilyWeekend}
+              className="px-3 py-2 text-sm bg-indigo-100 text-indigo-800 rounded-md hover:bg-indigo-200 transition-colors"
+            >
+              Family Weekend
             </button>
           </div>
         </div>

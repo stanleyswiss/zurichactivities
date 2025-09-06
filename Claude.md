@@ -341,3 +341,19 @@ export const CATEGORIES = {
 - UI: removed "COMPREHENSIVE" from source filters; corrected map colors for DE categories; event card shows source hostname.
 - Removed all sample-data generation and disabled sample-based scrapers (ZURICH, MUNICIPAL, TEST, COMPREHENSIVE). Only real scrapers (ST, LIMMATTAL) run.
 - Added geocoding cache (Prisma model `GeocodeCache`) with optional TTL; Nominatim calls are throttled and cached.
+
+## TODO (Next Session)
+- Add Playwright-based scraper for Limmattal and extract schema.org JSON-LD for canonical links.
+- Verify Switzerland Tourism API endpoint and data model; adapt mapper accordingly.
+- Re-enable Zurich/Municipal only with real scrapers (no sample data) and apply content filter.
+- Add “Family Weekend” preset (<=50km, categories: familie/kultur/festival) and enable pagination in `/api/events`.
+- Optional: move scraping to Railway worker if durations or rate limits exceed Vercel constraints.
+
+## Admin Token Setup
+- Set `SCRAPE_TOKEN` in Vercel env to a long random string (32–64 chars). Examples to generate locally:
+  - `openssl rand -hex 32` (hex, URL-safe)
+  - `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+- Manual scrape:
+  - `POST /api/scrape` with header `Authorization: Bearer <SCRAPE_TOKEN>` (body: `{ "sources": ["ST","LIMMATTAL"], "force": false }`)
+- Create cache table (one-time):
+  - Open in browser: `/api/migrate?token=<SCRAPE_TOKEN>` (returns success if created)
