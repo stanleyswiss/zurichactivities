@@ -1,17 +1,47 @@
-import { db } from '@/lib/db';
+import { PrismaClient } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
+  let prisma: PrismaClient | null = null;
+  
   try {
-    // Check if the database connection works
-    await db.$connect();
+    // First try with internal DATABASE_URL
+    const internalUrl = process.env.DATABASE_URL;
+    const publicUrl = process.env.DATABASE_PUBLIC_URL;
     
-    // Try to create a simple test query
-    await db.$executeRaw`SELECT 1`;
+    console.log('Attempting database connection...');
+    
+    try {
+      if (internalUrl) {
+        prisma = new PrismaClient({
+          datasources: { db: { url: internalUrl } }
+        });
+        await prisma.$connect();
+        await prisma.$executeRaw`SELECT 1`;
+        console.log('Connected using internal URL');
+      } else {
+        throw new Error('No internal URL available');
+      }
+    } catch (internalError) {
+      console.log('Internal URL failed, trying public URL...');
+      
+      if (publicUrl) {
+        await prisma?.$disconnect();
+        prisma = new PrismaClient({
+          datasources: { db: { url: publicUrl } }
+        });
+        await prisma.$connect();
+        await prisma.$executeRaw`SELECT 1`;
+        console.log('Connected using public URL');
+      } else {
+        throw new Error('No public URL available');
+      }
+    }
     
     return NextResponse.json({ 
       success: true, 
-      message: 'Database connection successful. Schema should be auto-created by Prisma.' 
+      message: 'Database connection successful. Schema should be auto-created by Prisma.',
+      url: prisma ? 'Connected successfully' : 'Unknown connection'
     });
   } catch (error) {
     console.error('Migration error:', error);
@@ -20,6 +50,8 @@ export async function POST(request: NextRequest) {
       error: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 });
   } finally {
-    await db.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   }
 }
