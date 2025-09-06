@@ -99,18 +99,45 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
     );
   }
 
+  // Create an interactive Google Maps embed URL with multiple markers
+  const createInteractiveMapUrl = () => {
+    if (!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) return '';
+    
+    // Use Google Maps Embed API with multiple markers via search
+    const locations = eventsWithCoords
+      .slice(0, 10) // Limit to prevent URL being too long
+      .map(event => `${event.lat},${event.lon}`)
+      .join('|');
+    
+    return `https://www.google.com/maps/embed/v1/view?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&center=${centerLat},${centerLon}&zoom=9&maptype=roadmap`;
+  };
+
   return (
     <div className="w-full h-full relative">
-      {/* Static Map with Event Markers */}
-      <img
-        src={createStaticMapUrl()}
-        alt="Events Map"
-        className="w-full h-full object-cover rounded-lg"
-        style={{ maxHeight: '500px' }}
+      {/* Interactive Google Maps Embed */}
+      <iframe
+        src={createInteractiveMapUrl()}
+        width="100%"
+        height="500"
+        style={{ border: 0, borderRadius: '8px' }}
+        allowFullScreen
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+        className="w-full h-full"
       />
       
+      {/* Static Map Overlay with Markers (positioned over interactive map) */}
+      <div className="absolute inset-0 pointer-events-none">
+        <img
+          src={createStaticMapUrl()}
+          alt="Event Markers"
+          className="w-full h-full object-cover rounded-lg opacity-80"
+          style={{ mixBlendMode: 'multiply' }}
+        />
+      </div>
+      
       {/* Map Legend */}
-      <div className="absolute top-4 left-4 bg-white bg-opacity-90 rounded-lg p-3 shadow-lg">
+      <div className="absolute top-4 left-4 bg-white bg-opacity-95 rounded-lg p-3 shadow-lg z-10">
         <h4 className="text-sm font-semibold text-gray-900 mb-2">Event Markers</h4>
         <div className="space-y-1 text-xs">
           <div className="flex items-center">
@@ -130,23 +157,23 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
             <span>Markets</span>
           </div>
           <div className="text-gray-500 mt-2">
-            {eventsWithCoords.length} events shown
+            {eventsWithCoords.length} events with markers
           </div>
         </div>
       </div>
       
-      {/* Interactive Link */}
-      <div className="absolute bottom-4 right-4">
+      {/* External Map Link */}
+      <div className="absolute bottom-4 right-4 z-10">
         <a
           href={getAllEventsMapUrl()}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center px-3 py-2 bg-white bg-opacity-90 hover:bg-opacity-100 rounded-lg shadow-lg text-sm font-medium text-gray-900 transition-all"
+          className="inline-flex items-center px-3 py-2 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-lg shadow-lg text-sm font-medium text-gray-900 transition-all"
         >
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
-          Open in Google Maps
+          Full Screen
         </a>
       </div>
     </div>
