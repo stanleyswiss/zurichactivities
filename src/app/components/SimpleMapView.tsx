@@ -32,7 +32,9 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
     return `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLon}&zoom=9&size=800x500&maptype=roadmap${markers}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`;
   };
 
-  const getMarkerColor = (category?: string) => {
+  const getMarkerColor = (category?: string | null) => {
+    if (!category) return 'red';
+    
     switch (category) {
       case 'alpsabzug': return 'orange';
       case 'festival': return 'purple';
