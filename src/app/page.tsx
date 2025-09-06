@@ -31,7 +31,7 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          sources: ['ST', 'LIMMATTAL'],
+          // Omit sources to use server-side default from SOURCES_ENABLED env
           force: false
         })
       });

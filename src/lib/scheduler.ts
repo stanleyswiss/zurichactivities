@@ -44,7 +44,11 @@ export class EventScheduler {
 
     this.isRunning = true;
     const results: ScraperResult[] = [];
-    const sourcesToRun = sources || ['ST', 'LIMMATTAL'];
+    let sourcesToRun = sources;
+    if (!sourcesToRun || sourcesToRun.length === 0) {
+      const envList = process.env.SOURCES_ENABLED?.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      sourcesToRun = (envList && envList.length > 0) ? envList : ['LIMMATTAL'];
+    }
 
     console.log(`Starting scrape for sources: ${sourcesToRun.join(', ')}`);
 

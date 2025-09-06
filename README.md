@@ -154,6 +154,7 @@ NEXT_PUBLIC_SCHLIEREN_LON="8.447"
 # Admin/auth
 SCRAPE_TOKEN="your_admin_token" # optional: required for /api/migrate and /api/scrape if set
 SCRAPE_PUBLIC="false"           # set to "true" to let the UI Update button call /api/scrape without a token (testing only)
+SOURCES_ENABLED="LIMMATTAL"     # comma-separated list of sources to run by default (e.g., LIMMATTAL or ST,LIMMATTAL)
 ```
 
 ## Deployment

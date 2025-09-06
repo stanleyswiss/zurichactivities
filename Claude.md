@@ -117,6 +117,7 @@ SCRAPE_TOKEN="<admin_token_optional>"     # required for /api/migrate; used by /
 NOMINATIM_EMAIL="you@example.com"         # optional, appended to UA for geocoding
 GEOCODE_CACHE_TTL_DAYS="365"             # optional cache TTL in days
 SCRAPE_PUBLIC="false"                    # if "true", allow UI to trigger /api/scrape without token (testing only)
+SOURCES_ENABLED="LIMMATTAL"             # default sources when none provided (e.g., LIMMATTAL or ST,LIMMATTAL)
 ```
 
 ## Core Scrapers

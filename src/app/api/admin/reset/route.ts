@@ -19,7 +19,11 @@ async function handle(request: NextRequest) {
   }
   const clearCache = request.nextUrl.searchParams.get('clearCache') === '1';
   const sources = request.nextUrl.searchParams.getAll('source');
-  const sourcesToRun = sources.length > 0 ? sources : ['ST', 'LIMMATTAL'];
+  let sourcesToRun = sources;
+  if (!sourcesToRun || sourcesToRun.length === 0) {
+    const envList = process.env.SOURCES_ENABLED?.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+    sourcesToRun = (envList && envList.length > 0) ? envList : ['LIMMATTAL'];
+  }
 
   const deletedEvents = await db.event.deleteMany({});
   let deletedCache = { count: 0 } as { count: number };
@@ -49,4 +53,3 @@ async function handle(request: NextRequest) {
 
 export async function POST(request: NextRequest) { return handle(request); }
 export async function GET(request: NextRequest) { return handle(request); }
-
