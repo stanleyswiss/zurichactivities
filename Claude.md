@@ -118,6 +118,10 @@ NOMINATIM_EMAIL="you@example.com"         # optional, appended to UA for geocodi
 GEOCODE_CACHE_TTL_DAYS="365"             # optional cache TTL in days
 SCRAPE_PUBLIC="false"                    # if "true", allow UI to trigger /api/scrape without token (testing only)
 SOURCES_ENABLED="LIMMATTAL"             # default sources when none provided (e.g., LIMMATTAL or ST,LIMMATTAL)
+ST_EVENTS_URL="https://<correct-st-endpoint>/events"  # REQUIRED for ST scraper
+ST_BBOX="8.0,47.0,9.0,48.0"              # Optional Zurich-region bbox
+ST_LANG="de"                              # Optional
+ST_LIMIT="100"                            # Optional
 ```
 
 ## Core Scrapers
@@ -347,6 +351,7 @@ export const CATEGORIES = {
 ## TODO (Next Session)
 - Add Playwright-based scraper for Limmattal and extract schema.org JSON-LD for canonical links.
 - Verify Switzerland Tourism API endpoint and data model; adapt mapper accordingly.
+  - Provide `ST_EVENTS_URL` env once verified; then set `SOURCES_ENABLED=ST,LIMMATTAL`.
 - Re-enable Zurich/Municipal only with real scrapers (no sample data) and apply content filter.
 - Add “Family Weekend” preset (<=50km, categories: familie/kultur/festival) and enable pagination in `/api/events`.
 - Optional: move scraping to Railway worker if durations or rate limits exceed Vercel constraints.

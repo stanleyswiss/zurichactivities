@@ -50,14 +50,15 @@ class RateLimiter {
 
 export class SwitzerlandTourismScraper {
   private apiKey: string;
-  private baseUrl = 'https://dataapi.myswitzerland.com/v1/events';
+  private baseUrl: string;
   private rateLimiter = new RateLimiter(1); // 1 request per second
 
   constructor() {
     this.apiKey = process.env.ST_API_KEY!;
-    if (!this.apiKey) {
-      throw new Error('ST_API_KEY environment variable is required');
-    }
+    if (!this.apiKey) throw new Error('ST_API_KEY environment variable is required');
+    // Require explicit endpoint to avoid DNS failures
+    this.baseUrl = process.env.ST_EVENTS_URL || '';
+    if (!this.baseUrl) throw new Error('ST_EVENTS_URL environment variable is required (Switzerland Tourism Events endpoint)');
   }
 
   async scrapeEvents(): Promise<RawEvent[]> {
@@ -65,12 +66,13 @@ export class SwitzerlandTourismScraper {
       await this.rateLimiter.waitForNextRequest();
 
       // Bounding box around Zurich region (rough coordinates)
-      const bbox = '8.0,47.0,9.0,48.0'; // lon_min, lat_min, lon_max, lat_max
+      const bbox = process.env.ST_BBOX || '8.0,47.0,9.0,48.0'; // lon_min, lat_min, lon_max, lat_max
       
       const url = new URL(this.baseUrl);
+      // Common patterns; customizable per deployment
       url.searchParams.append('bbox', bbox);
-      url.searchParams.append('lang', 'de');
-      url.searchParams.append('limit', '100');
+      url.searchParams.append('lang', process.env.ST_LANG || 'de');
+      url.searchParams.append('limit', process.env.ST_LIMIT || '100');
       url.searchParams.append('from', new Date().toISOString().split('T')[0]);
       
       const response = await fetch(url.toString(), {
@@ -86,7 +88,8 @@ export class SwitzerlandTourismScraper {
       }
 
       const data = await response.json();
-      const events: SwitzerlandTourismEvent[] = data.events || data || [];
+      // Map flexible payloads: either an array, or { events: [] }
+      const events: SwitzerlandTourismEvent[] = Array.isArray(data) ? data : (data.events || []);
 
       const rawEvents: RawEvent[] = [];
 

@@ -146,6 +146,10 @@ DATABASE_PUBLIC_URL="postgres://..." # pooled/public URL recommended for Vercel
 ST_API_KEY="your_switzerland_tourism_api_key"
 NOMINATIM_EMAIL="you@example.com"           # optional, appended to User-Agent for geocoding
 GEOCODE_CACHE_TTL_DAYS="365"               # optional, days to keep cached coordinates
+ST_EVENTS_URL="https://<correct-st-endpoint>/events"  # required for ST scraper
+ST_BBOX="8.0,47.0,9.0,48.0"                # optional Zurich-region bbox
+ST_LANG="de"                                # optional (de/en)
+ST_LIMIT="100"                              # optional
 
 # App config
 NEXT_PUBLIC_SCHLIEREN_LAT="47.396"
