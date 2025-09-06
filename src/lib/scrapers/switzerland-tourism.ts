@@ -50,66 +50,115 @@ class RateLimiter {
 
 export class SwitzerlandTourismScraper {
   private apiKey: string;
-  private baseUrl: string;
+  private baseUrl?: string; // GET events endpoint (x-api-key)
+  private searchUrl?: string; // POST search endpoint (Ocp-Apim-Subscription-Key)
+  private subscriptionKey?: string;
   private rateLimiter = new RateLimiter(1); // 1 request per second
 
   constructor() {
-    this.apiKey = process.env.ST_API_KEY!;
-    if (!this.apiKey) throw new Error('ST_API_KEY environment variable is required');
-    // Require explicit endpoint to avoid DNS failures
-    this.baseUrl = process.env.ST_EVENTS_URL || '';
-    if (!this.baseUrl) throw new Error('ST_EVENTS_URL environment variable is required (Switzerland Tourism Events endpoint)');
+    this.apiKey = process.env.ST_API_KEY || '';
+    this.baseUrl = process.env.ST_EVENTS_URL || undefined;
+    this.searchUrl = process.env.ST_SEARCH_URL || undefined; // e.g., https://api.discover.swiss/info/v2/search
+    this.subscriptionKey = process.env.ST_SUBSCRIPTION_KEY || undefined;
+    if (!this.baseUrl && !this.searchUrl) {
+      throw new Error('Configure ST_EVENTS_URL (GET + x-api-key) or ST_SEARCH_URL (POST + Ocp-Apim-Subscription-Key)');
+    }
   }
 
   async scrapeEvents(): Promise<RawEvent[]> {
     try {
       await this.rateLimiter.waitForNextRequest();
-
-      // Bounding box around Zurich region (rough coordinates)
-      const bbox = process.env.ST_BBOX || '8.0,47.0,9.0,48.0'; // lon_min, lat_min, lon_max, lat_max
-      
-      const url = new URL(this.baseUrl);
-      // Common patterns; customizable per deployment
-      url.searchParams.append('bbox', bbox);
-      url.searchParams.append('lang', process.env.ST_LANG || 'de');
-      url.searchParams.append('limit', process.env.ST_LIMIT || '100');
-      url.searchParams.append('from', new Date().toISOString().split('T')[0]);
-      
-      const response = await fetch(url.toString(), {
-        headers: {
-          'x-api-key': this.apiKey,
-          'Accept': 'application/json',
-          'User-Agent': 'SwissActivitiesDashboard/1.0'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`ST API error: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      // Map flexible payloads: either an array, or { events: [] }
-      const events: SwitzerlandTourismEvent[] = Array.isArray(data) ? data : (data.events || []);
-
-      const rawEvents: RawEvent[] = [];
-
-      for (const event of events) {
-        try {
-          const rawEvent = await this.transformEvent(event);
-          if (rawEvent) {
-            rawEvents.push(rawEvent);
-          }
-        } catch (error) {
-          console.error('Error transforming ST event:', event.id, error);
-        }
-      }
-
-      console.log(`Switzerland Tourism: Scraped ${rawEvents.length} events`);
-      return rawEvents;
+      if (this.baseUrl) return await this.scrapeViaEventsGet();
+      if (this.searchUrl) return await this.scrapeViaSearchPost();
+      return [];
     } catch (error) {
       console.error('Switzerland Tourism scraper error:', error);
       return [];
     }
+  }
+
+  private async scrapeViaEventsGet(): Promise<RawEvent[]> {
+    if (!this.baseUrl) return [];
+    if (!this.apiKey) throw new Error('ST_API_KEY missing for ST_EVENTS_URL');
+
+    const bbox = process.env.ST_BBOX || '8.0,47.0,9.0,48.0'; // lon_min, lat_min, lon_max, lat_max
+    const url = new URL(this.baseUrl);
+    url.searchParams.append('bbox', bbox);
+    url.searchParams.append('lang', process.env.ST_LANG || 'de');
+    url.searchParams.append('limit', process.env.ST_LIMIT || '100');
+    url.searchParams.append('from', new Date().toISOString().split('T')[0]);
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        'x-api-key': this.apiKey,
+        'Accept': 'application/json',
+        'User-Agent': 'SwissActivitiesDashboard/1.0'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`ST API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const events: SwitzerlandTourismEvent[] = Array.isArray(data) ? data : (data.events || []);
+    const rawEvents: RawEvent[] = [];
+    for (const event of events) {
+      try {
+        const raw = await this.transformEvent(event);
+        if (raw) rawEvents.push(raw);
+      } catch (e) {
+        console.error('Error transforming ST event (GET):', (event as any)?.id, e);
+      }
+    }
+    console.log(`Switzerland Tourism (GET): ${rawEvents.length} events`);
+    return rawEvents;
+  }
+
+  private async scrapeViaSearchPost(): Promise<RawEvent[]> {
+    if (!this.searchUrl) return [];
+    const key = this.subscriptionKey || this.apiKey;
+    if (!key) throw new Error('ST_SUBSCRIPTION_KEY or ST_API_KEY required for ST_SEARCH_URL');
+
+    const lat = parseFloat(process.env.NEXT_PUBLIC_SCHLIEREN_LAT || '47.396');
+    const lon = parseFloat(process.env.NEXT_PUBLIC_SCHLIEREN_LON || '8.447');
+    const select = 'identifier,name,startDate,endDate,location,offers,url,image,description';
+    const lang = process.env.ST_LANG || 'de';
+    const limit = parseInt(process.env.ST_LIMIT || '100');
+
+    const response = await fetch(`${this.searchUrl}?scoringReferencePoint=${lon},${lat}`, {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': key,
+        'Accept-Language': lang,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'SwissActivitiesDashboard/1.0'
+      },
+      body: JSON.stringify({
+        type: ['Event'],
+        select,
+        top: limit
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`ST Search API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const items = Array.isArray(data?.value) ? data.value : [];
+    const rawEvents: RawEvent[] = [];
+    for (const node of items) {
+      try {
+        const raw = await this.transformSearchEvent(node);
+        if (raw) rawEvents.push(raw);
+      } catch (e) {
+        console.error('Error transforming ST event (POST):', node?.identifier, e);
+      }
+    }
+    console.log(`Switzerland Tourism (POST search): ${rawEvents.length} events`);
+    return rawEvents;
   }
 
   private async transformEvent(event: SwitzerlandTourismEvent): Promise<RawEvent | null> {
@@ -160,6 +209,64 @@ export class SwitzerlandTourismScraper {
       currency: event.price?.currency || 'CHF',
       url: event.url,
       imageUrl: event.image
+    };
+  }
+
+  private async transformSearchEvent(node: any): Promise<RawEvent | null> {
+    const title = node?.name || node?.title;
+    const start = node?.startDate;
+    if (!title || !start) return null;
+    const end = node?.endDate;
+
+    let lat: number | undefined = node?.location?.geo?.latitude;
+    let lon: number | undefined = node?.location?.geo?.longitude;
+    const street: string | undefined = node?.location?.address?.streetAddress;
+    const postalCode: string | undefined = node?.location?.address?.postalCode;
+    const city: string | undefined = node?.location?.address?.addressLocality;
+    const venueName: string | undefined = node?.location?.name;
+
+    if ((!lat || !lon) && (street || city || postalCode)) {
+      const addr = formatSwissAddress(street, postalCode, city);
+      const g = await geocodeAddress(addr);
+      if (g) { lat = g.lat; lon = g.lon; }
+    }
+
+    const priceInfo = node?.offers?.price || node?.offers;
+    let priceMin: number | undefined;
+    let priceMax: number | undefined;
+    let currency: string | undefined;
+    if (priceInfo) {
+      if (typeof priceInfo.min === 'number') priceMin = priceInfo.min;
+      if (typeof priceInfo.max === 'number') priceMax = priceInfo.max;
+      currency = priceInfo.currency || priceInfo.priceCurrency;
+      const p = parseFloat(priceInfo.price);
+      if (!isNaN(p)) priceMin = priceMin ?? p;
+    }
+
+    const imageUrl: string | undefined = node?.image?.url || (Array.isArray(node?.image) ? node.image[0] : node?.image);
+    const url: string | undefined = node?.url;
+
+    return {
+      source: SOURCES.ST,
+      sourceEventId: node?.identifier || node?.id || url,
+      title,
+      description: node?.description,
+      lang: process.env.ST_LANG || 'de',
+      category: undefined,
+      startTime: new Date(start),
+      endTime: end ? new Date(end) : undefined,
+      venueName,
+      street,
+      postalCode,
+      city,
+      country: 'CH',
+      lat,
+      lon,
+      priceMin,
+      priceMax,
+      currency: currency || 'CHF',
+      url,
+      imageUrl
     };
   }
 
