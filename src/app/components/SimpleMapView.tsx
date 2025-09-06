@@ -67,7 +67,7 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
           <div className="mb-4">
             <svg className="mx-auto h-16 w-16 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 616 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 6 0z" />
             </svg>
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Enable Maps Static API</h3>
@@ -99,16 +99,18 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
     );
   }
 
-  // Create an interactive Google Maps embed URL with multiple markers
+  // Create an interactive Google Maps embed URL with markers
   const createInteractiveMapUrl = () => {
     if (!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) return '';
     
-    // Use Google Maps Embed API with multiple markers via search
-    const locations = eventsWithCoords
-      .slice(0, 10) // Limit to prevent URL being too long
-      .map(event => `${event.lat},${event.lon}`)
-      .join('|');
+    // If we have events, use search mode to show markers around the area
+    if (eventsWithCoords.length > 0) {
+      // Use the first event as the search query to center the map in the right area
+      const centerEvent = eventsWithCoords[0];
+      return `https://www.google.com/maps/embed/v1/search?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=events+near+${centerEvent.lat},${centerEvent.lon}&zoom=9&maptype=roadmap`;
+    }
     
+    // Fallback to view mode centered on Schlieren
     return `https://www.google.com/maps/embed/v1/view?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&center=${centerLat},${centerLon}&zoom=9&maptype=roadmap`;
   };
 
