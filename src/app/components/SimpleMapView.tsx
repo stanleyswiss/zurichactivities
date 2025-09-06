@@ -81,18 +81,47 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
     );
   }
 
+  // Create embedded Google Maps URL with multiple markers using the correct API
+  const createEmbeddedMapWithMarkers = () => {
+    if (!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) return '';
+    
+    // Use the directions API to show multiple waypoints, which shows all locations
+    if (eventsWithCoords.length > 0) {
+      const origin = `${eventsWithCoords[0].lat},${eventsWithCoords[0].lon}`;
+      const waypoints = eventsWithCoords
+        .slice(1, 10) // Take up to 9 additional waypoints (Google limit)
+        .map(event => `${event.lat},${event.lon}`)
+        .join('|');
+      
+      if (waypoints) {
+        return `https://www.google.com/maps/embed/v1/directions?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&origin=${origin}&destination=${origin}&waypoints=${waypoints}&mode=driving`;
+      }
+    }
+    
+    // Fallback to view mode
+    return `https://www.google.com/maps/embed/v1/view?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&center=${centerLat},${centerLon}&zoom=9&maptype=roadmap`;
+  };
+
   return (
     <div className="w-full h-full relative">
-      {/* Always show Google Static Map - the markers work properly and move with zoom */}
-      <img
-        src={createStaticMapUrl()}
-        alt="Event Locations Map"  
-        className="w-full h-full object-cover rounded-lg"
+      {/* Interactive embedded Google Maps that stays within your site */}
+      <iframe
+        src={createEmbeddedMapWithMarkers()}
+        width="100%"
+        height="500"
+        style={{ border: 0, borderRadius: '8px' }}
+        allowFullScreen
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+        className="w-full h-full"
       />
       
-      {/* Legend */}
-      <div className="absolute top-4 left-4 bg-white bg-opacity-95 rounded-lg p-3 shadow-lg z-10">
-        <h4 className="text-sm font-semibold text-gray-900 mb-2">Event Map</h4>
+      {/* Event Info Overlay */}
+      <div className="absolute top-4 left-4 bg-white bg-opacity-95 rounded-lg p-3 shadow-lg z-10 max-w-xs">
+        <h4 className="text-sm font-semibold text-gray-900 mb-2">Interactive Event Map</h4>
+        <div className="text-xs text-gray-600 mb-2">
+          Navigate directly in this map - pan, zoom, and explore
+        </div>
         <div className="space-y-1 text-xs">
           <div className="flex items-center">
             <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
@@ -111,25 +140,46 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
             <span>Markets</span>
           </div>
           <div className="text-gray-500 mt-2">
-            {eventsWithCoords.length} events • Letters mark locations
+            {eventsWithCoords.length} events shown as route waypoints
           </div>
         </div>
       </div>
 
-      {/* External Google Maps Link */}
+      {/* Optional external link - small and unobtrusive */}
       <div className="absolute bottom-4 right-4 z-10">
         <a
           href={getAllEventsMapUrl()}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-lg text-sm font-medium transition-all"
-          title="Open interactive version in Google Maps"
+          className="inline-flex items-center px-2 py-1 bg-gray-800 bg-opacity-70 hover:bg-opacity-90 text-white rounded text-xs transition-all"
+          title="Open in new Google Maps tab (only if needed for detailed navigation)"
         >
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
-          Interactive Map
+          External
         </a>
+      </div>
+
+      {/* Event List Panel */}
+      <div className="absolute bottom-4 left-4 bg-white bg-opacity-95 rounded-lg p-3 shadow-lg z-10 max-w-xs max-h-32 overflow-y-auto">
+        <h5 className="text-xs font-semibold text-gray-900 mb-1">Nearby Events</h5>
+        <div className="space-y-1">
+          {eventsWithCoords.slice(0, 5).map((event, index) => (
+            <div key={event.id} className="text-xs">
+              <div className="font-medium text-gray-800 truncate">{event.title}</div>
+              <div className="text-gray-500">
+                {new Date(event.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                • {event.city}
+              </div>
+            </div>
+          ))}
+          {eventsWithCoords.length > 5 && (
+            <div className="text-xs text-gray-400">
+              +{eventsWithCoords.length - 5} more events
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
