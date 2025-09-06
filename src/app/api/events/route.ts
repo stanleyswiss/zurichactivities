@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { filterByDistance, calculateDistance } from '@/lib/utils/distance';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = request.nextUrl;
     
     // Parse query parameters
     const from = searchParams.get('from') || new Date().toISOString().split('T')[0];
