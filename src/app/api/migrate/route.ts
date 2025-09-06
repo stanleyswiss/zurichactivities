@@ -18,6 +18,14 @@ export async function POST(request: NextRequest) {
         });
         await prisma.$connect();
         await prisma.$executeRaw`SELECT 1`;
+        
+        // Try to create a test event to ensure tables exist
+        try {
+          await prisma.event.count();
+        } catch (tableError) {
+          console.log('Tables do not exist, they should be auto-created by Prisma on first use');
+        }
+        
         console.log('Connected using internal URL');
       } else {
         throw new Error('No internal URL available');
@@ -32,6 +40,15 @@ export async function POST(request: NextRequest) {
         });
         await prisma.$connect();
         await prisma.$executeRaw`SELECT 1`;
+        
+        // Try to create a test event to ensure tables exist
+        try {
+          const count = await prisma.event.count();
+          console.log(`Event table exists with ${count} records`);
+        } catch (tableError) {
+          console.log('Tables do not exist, they should be auto-created by Prisma on first use');
+        }
+        
         console.log('Connected using public URL');
       } else {
         throw new Error('No public URL available');

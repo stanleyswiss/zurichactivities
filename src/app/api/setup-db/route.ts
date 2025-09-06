@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     };
     
     // Run prisma db push to create the tables
-    const { stdout, stderr } = await execAsync('npx prisma db push --force-reset', {
+    const { stdout, stderr } = await execAsync('yarn prisma db push --force-reset', {
       env,
       cwd: process.cwd()
     });

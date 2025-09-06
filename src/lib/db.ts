@@ -4,13 +4,10 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// Create Prisma client with fallback URL logic
+// Create Prisma client using public URL
 function createPrismaClient() {
-  const internalUrl = process.env.DATABASE_URL;
-  const publicUrl = process.env.DATABASE_PUBLIC_URL;
-  
-  // Try public URL first in production since internal often fails
-  const url = process.env.NODE_ENV === 'production' && publicUrl ? publicUrl : internalUrl;
+  // Use DATABASE_PUBLIC_URL since internal URL doesn't work from Vercel
+  const url = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
   
   return new PrismaClient({
     datasources: {
