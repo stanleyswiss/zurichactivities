@@ -116,21 +116,17 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
 
   return (
     <div className="w-full h-full relative">
-      {/* Single Interactive Google Maps with Custom Markers */}
-      <iframe
-        src={createInteractiveMapUrl()}
-        width="100%"
-        height="500"
-        style={{ border: 0, borderRadius: '8px' }}
-        allowFullScreen
-        loading="lazy"
-        referrerPolicy="no-referrer-when-downgrade"
-        className="w-full h-full"
+      {/* Static Map with Markers - Main Display */}
+      <img
+        src={createStaticMapUrl()}
+        alt="Event Locations Map"
+        className="w-full h-full object-cover rounded-lg cursor-pointer"
+        onClick={() => window.open(getAllEventsMapUrl(), '_blank')}
       />
       
       {/* Map Legend */}
       <div className="absolute top-4 left-4 bg-white bg-opacity-95 rounded-lg p-3 shadow-lg z-10">
-        <h4 className="text-sm font-semibold text-gray-900 mb-2">Event Locations</h4>
+        <h4 className="text-sm font-semibold text-gray-900 mb-2">Event Markers</h4>
         <div className="space-y-1 text-xs">
           <div className="flex items-center">
             <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
@@ -149,24 +145,29 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
             <span>Markets</span>
           </div>
           <div className="text-gray-500 mt-2">
-            {eventsWithCoords.length} events shown
+            {eventsWithCoords.length} events with markers
           </div>
         </div>
       </div>
       
-      {/* External Map Link */}
+      {/* Click to Open Interactive Map */}
       <div className="absolute bottom-4 right-4 z-10">
         <a
           href={getAllEventsMapUrl()}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center px-3 py-2 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-lg shadow-lg text-sm font-medium text-gray-900 transition-all"
+          className="inline-flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-lg text-sm font-medium transition-all"
         >
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002 2v-4M14 4h6m0 0v6m0-6L10 14" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
-          Full Screen
+          Interactive Map
         </a>
+      </div>
+      
+      {/* Click Hint */}
+      <div className="absolute bottom-4 left-4 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
+        Click map for interactive view
       </div>
     </div>
   );
