@@ -99,30 +99,71 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
     );
   }
 
-  // Create an interactive Google Maps embed URL with markers
+  // Create an interactive Google Maps embed URL that works within the site
   const createInteractiveMapUrl = () => {
     if (!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) return '';
     
-    // If we have events, use search mode to show markers around the area
-    if (eventsWithCoords.length > 0) {
-      // Use the first event as the search query to center the map in the right area
-      const centerEvent = eventsWithCoords[0];
-      return `https://www.google.com/maps/embed/v1/search?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=events+near+${centerEvent.lat},${centerEvent.lon}&zoom=9&maptype=roadmap`;
-    }
-    
-    // Fallback to view mode centered on Schlieren
+    // Use the view mode but with specific center and zoom for the Swiss region
     return `https://www.google.com/maps/embed/v1/view?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&center=${centerLat},${centerLon}&zoom=9&maptype=roadmap`;
   };
 
+  const [showInteractive, setShowInteractive] = useState(false);
+
   return (
     <div className="w-full h-full relative">
-      {/* Static Map with Markers - Main Display */}
-      <img
-        src={createStaticMapUrl()}
-        alt="Event Locations Map"
-        className="w-full h-full object-cover rounded-lg cursor-pointer"
-        onClick={() => window.open(getAllEventsMapUrl(), '_blank')}
-      />
+      {!showInteractive ? (
+        // Static Map with Markers - Initial Display
+        <>
+          <img
+            src={createStaticMapUrl()}
+            alt="Event Locations Map"
+            className="w-full h-full object-cover rounded-lg cursor-pointer"
+            onClick={() => setShowInteractive(true)}
+          />
+          
+          {/* Click Hint */}
+          <div className="absolute bottom-4 left-4 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
+            Click to enable interactive navigation
+          </div>
+        </>
+      ) : (
+        // Interactive Google Maps Embed - Stays within site
+        <>
+          <iframe
+            src={createInteractiveMapUrl()}
+            width="100%"
+            height="500"
+            style={{ border: 0, borderRadius: '8px' }}
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            className="w-full h-full"
+          />
+          
+          {/* Semi-transparent overlay with event markers */}
+          <div className="absolute inset-0 pointer-events-none">
+            <img
+              src={createStaticMapUrl()}
+              alt="Event Markers Overlay"
+              className="w-full h-full object-cover rounded-lg opacity-60"
+              style={{ mixBlendMode: 'multiply' }}
+            />
+          </div>
+          
+          {/* Switch back to static view */}
+          <div className="absolute bottom-4 left-4 z-10">
+            <button
+              onClick={() => setShowInteractive(false)}
+              className="inline-flex items-center px-3 py-2 bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-700 rounded-lg shadow-lg text-sm font-medium transition-all"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+              Show Markers
+            </button>
+          </div>
+        </>
+      )}
       
       {/* Map Legend */}
       <div className="absolute top-4 left-4 bg-white bg-opacity-95 rounded-lg p-3 shadow-lg z-10">
@@ -145,29 +186,25 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
             <span>Markets</span>
           </div>
           <div className="text-gray-500 mt-2">
-            {eventsWithCoords.length} events with markers
+            {eventsWithCoords.length} events {showInteractive ? '(interactive mode)' : 'with markers'}
           </div>
         </div>
       </div>
       
-      {/* Click to Open Interactive Map */}
+      {/* External Map Link - Only for reference */}
       <div className="absolute bottom-4 right-4 z-10">
         <a
           href={getAllEventsMapUrl()}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-lg text-sm font-medium transition-all"
+          className="inline-flex items-center px-2 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-xs font-medium transition-all"
+          title="Open in Google Maps"
         >
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
-          Interactive Map
+          External
         </a>
-      </div>
-      
-      {/* Click Hint */}
-      <div className="absolute bottom-4 left-4 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
-        Click map for interactive view
       </div>
     </div>
   );
