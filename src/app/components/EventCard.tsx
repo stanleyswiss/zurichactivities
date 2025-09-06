@@ -5,9 +5,10 @@ import { CATEGORIES } from '@/types/event';
 
 interface EventCardProps {
   event: Event & { distance?: number | null };
+  isListView?: boolean;
 }
 
-export default function EventCard({ event }: EventCardProps) {
+export default function EventCard({ event, isListView = false }: EventCardProps) {
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('de-CH', {
       weekday: 'short',
@@ -66,6 +67,94 @@ export default function EventCard({ event }: EventCardProps) {
     
     window.open(googleCalendarUrl.toString(), '_blank');
   };
+
+  if (isListView) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center space-x-2 mb-2">
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSourceBadgeColor(event.source)}`}>
+                {event.source}
+              </span>
+              {event.category && (
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(event.category)}`}>
+                  {event.category}
+                </span>
+              )}
+              {event.distance && (
+                <span className="text-sm text-gray-500">
+                  {event.distance}km away
+                </span>
+              )}
+            </div>
+            
+            <h3 className="text-lg font-semibold text-gray-900 mb-1 line-clamp-1">
+              {event.title}
+            </h3>
+            
+            {event.description && (
+              <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                {event.description}
+              </p>
+            )}
+            
+            <div className="flex items-center space-x-4 text-sm text-gray-500">
+              <div className="flex items-center">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {formatDate(event.startTime)}
+                {formatTime(event.startTime) !== '00:00' && (
+                  <span className="ml-1">{formatTime(event.startTime)}</span>
+                )}
+              </div>
+              
+              {(event.venueName || event.city) && (
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {[event.venueName, event.city].filter(Boolean).join(', ')}
+                </div>
+              )}
+              
+              {(event.priceMin || event.priceMax) && (
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                  {event.priceMin === 0 && !event.priceMax ? 'Free' : 
+                   event.priceMin === event.priceMax ? `${event.priceMin} ${event.currency}` :
+                   `${event.priceMin || 0} - ${event.priceMax || '?'} ${event.currency}`}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex space-x-2 flex-shrink-0">
+            <button
+              onClick={addToCalendar}
+              className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              Add to Calendar
+            </button>
+            {event.url && (
+              <a
+                href={event.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Details
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
