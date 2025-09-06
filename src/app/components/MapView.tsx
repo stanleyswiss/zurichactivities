@@ -70,14 +70,42 @@ export default function MapView({ events }: MapViewProps) {
 
       {/* Simple Map with Event Markers */}
       <div className="bg-gray-100 rounded-lg overflow-hidden" style={{ height: '500px' }}>
-        <iframe
-          width="100%"
-          height="100%"
-          frameBorder="0"
-          src={`https://www.google.com/maps/embed/v1/view?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}&center=${centerLat},${centerLon}&zoom=10&maptype=roadmap`}
-          allowFullScreen
-          className="w-full h-full"
-        />
+        {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
+          <iframe
+            width="100%"
+            height="100%"
+            frameBorder="0"
+            src={`https://www.google.com/maps/embed/v1/view?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&center=${centerLat},${centerLon}&zoom=10&maptype=roadmap`}
+            allowFullScreen
+            className="w-full h-full"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+            <div className="text-center max-w-md p-6">
+              <div className="mb-4">
+                <svg className="mx-auto h-16 w-16 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Map View Available</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                To enable the interactive map, add a Google Maps API key to your environment variables.
+              </p>
+              <div className="bg-white rounded-lg p-3 text-left text-xs text-gray-700 border border-gray-200">
+                <div className="font-semibold mb-2">Setup Instructions:</div>
+                <div className="space-y-1">
+                  <div>1. Get API key from <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">Google Cloud Console</a></div>
+                  <div>2. Enable Maps Embed API</div>
+                  <div>3. Add to Vercel env vars:</div>
+                  <div className="bg-gray-100 px-2 py-1 rounded mt-1">
+                    <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Event List with Map Links */}
