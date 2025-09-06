@@ -15,17 +15,14 @@
   },
   "dependencies": {
     "@prisma/client": "^5.0.0",
-    "@types/leaflet": "^1.9.20",
     "autoprefixer": "^10.4.21",
     "cheerio": "^1.0.0-rc.12",
     "crypto": "^1.0.1",
-    "leaflet": "^1.9.4",
     "next": "^14.2.0",
     "node-cron": "^3.0.3",
     "prisma": "^5.0.0",
     "react": "^18",
-    "react-dom": "^18",
-    "react-leaflet": "^5.0.0"
+    "react-dom": "^18"
   },
   "devDependencies": {
     "@types/node": "^20",
