@@ -114,6 +114,8 @@ ST_API_KEY="<your_key>"                   # set in env only
 NEXT_PUBLIC_SCHLIEREN_LAT="47.396"
 NEXT_PUBLIC_SCHLIEREN_LON="8.447"
 SCRAPE_TOKEN="<admin_token_optional>"     # required for /api/migrate; used by /api/scrape if set
+NOMINATIM_EMAIL="you@example.com"         # optional, appended to UA for geocoding
+GEOCODE_CACHE_TTL_DAYS="365"             # optional cache TTL in days
 ```
 
 ## Core Scrapers
@@ -338,3 +340,4 @@ export const CATEGORIES = {
 - Fixed multi-select handling in `/api/events` (category/source `in` filters).
 - UI: removed "COMPREHENSIVE" from source filters; corrected map colors for DE categories; event card shows source hostname.
 - Removed all sample-data generation and disabled sample-based scrapers (ZURICH, MUNICIPAL, TEST, COMPREHENSIVE). Only real scrapers (ST, LIMMATTAL) run.
+- Added geocoding cache (Prisma model `GeocodeCache`) with optional TTL; Nominatim calls are throttled and cached.

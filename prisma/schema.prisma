@@ -42,3 +42,12 @@ model Event {
   @@index([source])
   @@index([category])
 }
+
+model GeocodeCache {
+  id         String   @id @default(cuid())
+  addressKey String   @unique
+  lat        Float
+  lon        Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

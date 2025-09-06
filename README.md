@@ -137,6 +137,8 @@ DATABASE_PUBLIC_URL="postgres://..." # pooled/public URL recommended for Vercel
 
 # Upstream APIs (do not commit secrets)
 ST_API_KEY="your_switzerland_tourism_api_key"
+NOMINATIM_EMAIL="you@example.com"           # optional, appended to User-Agent for geocoding
+GEOCODE_CACHE_TTL_DAYS="365"               # optional, days to keep cached coordinates
 
 # App config
 NEXT_PUBLIC_SCHLIEREN_LAT="47.396"
@@ -154,6 +156,12 @@ For production deployment:
 2. Set `ST_API_KEY` and optionally `SCRAPE_TOKEN` in Vercel (never in repo)
 3. Run Prisma migrations or `db push` from CI/local against Railway
 4. Deploy frontend on Vercel; Vercel Cron will call `GET /api/scrape` daily
+
+### Geocoding Cache
+- After deployment, run a Prisma push against Railway to create the cache table:
+  - Locally: set `DATABASE_URL` to your Railway Postgres and run `npm run db:push`.
+  - Or apply via CI.
+- Optional envs: `NOMINATIM_EMAIL`, `GEOCODE_CACHE_TTL_DAYS`.
 
 ## Contributing
 
