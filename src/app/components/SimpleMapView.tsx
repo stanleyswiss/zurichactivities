@@ -2,6 +2,7 @@
 
 import { Event } from '@prisma/client';
 import { useState } from 'react';
+import LeafletMap from './LeafletMap';
 
 interface SimpleMapViewProps {
   events: (Event & { distance?: number })[];
@@ -112,100 +113,80 @@ export default function SimpleMapView({ events }: SimpleMapViewProps) {
   return (
     <div className="w-full h-full relative">
       {!showInteractive ? (
-        // Static Map with Markers - Initial Display
+        // Static Map with Markers - Initial Display (fallback for Google Static Maps)
         <>
           <img
             src={createStaticMapUrl()}
             alt="Event Locations Map"
             className="w-full h-full object-cover rounded-lg cursor-pointer"
             onClick={() => setShowInteractive(true)}
+            onError={() => setShowInteractive(true)} // Auto-switch to interactive if static fails
           />
           
           {/* Click Hint */}
-          <div className="absolute bottom-4 left-4 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
+          <div className="absolute bottom-4 left-4 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded z-10">
             Click to enable interactive navigation
+          </div>
+
+          {/* Map Legend for static view */}
+          <div className="absolute top-4 left-4 bg-white bg-opacity-95 rounded-lg p-3 shadow-lg z-10">
+            <h4 className="text-sm font-semibold text-gray-900 mb-2">Event Markers</h4>
+            <div className="space-y-1 text-xs">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
+                <span>Alpsabzug Events</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-purple-500 rounded-full mr-2"></div>
+                <span>Festivals</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+                <span>Family Events</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                <span>Markets</span>
+              </div>
+              <div className="text-gray-500 mt-2">
+                {eventsWithCoords.length} events with markers
+              </div>
+            </div>
           </div>
         </>
       ) : (
-        // Interactive Google Maps Embed - Stays within site
+        // Interactive OpenStreetMap with Leaflet - Works with ad blockers
         <>
-          <iframe
-            src={createInteractiveMapUrl()}
-            width="100%"
-            height="500"
-            style={{ border: 0, borderRadius: '8px' }}
-            allowFullScreen
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            className="w-full h-full"
-          />
-          
-          {/* Semi-transparent overlay with event markers */}
-          <div className="absolute inset-0 pointer-events-none">
-            <img
-              src={createStaticMapUrl()}
-              alt="Event Markers Overlay"
-              className="w-full h-full object-cover rounded-lg opacity-60"
-              style={{ mixBlendMode: 'multiply' }}
-            />
-          </div>
+          <LeafletMap events={events} />
           
           {/* Switch back to static view */}
-          <div className="absolute bottom-4 left-4 z-10">
+          <div className="absolute bottom-4 right-4 z-[1001]">
             <button
               onClick={() => setShowInteractive(false)}
-              className="inline-flex items-center px-3 py-2 bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-700 rounded-lg shadow-lg text-sm font-medium transition-all"
+              className="inline-flex items-center px-3 py-2 bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-700 rounded-lg shadow-lg text-sm font-medium transition-all mr-2"
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
               </svg>
-              Show Markers
+              Static View
             </button>
+            
+            {/* External Google Maps Link */}
+            <a
+              href={getAllEventsMapUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center px-2 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-xs font-medium transition-all"
+              title="Open in Google Maps"
+            >
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              Google
+            </a>
           </div>
         </>
       )}
-      
-      {/* Map Legend */}
-      <div className="absolute top-4 left-4 bg-white bg-opacity-95 rounded-lg p-3 shadow-lg z-10">
-        <h4 className="text-sm font-semibold text-gray-900 mb-2">Event Markers</h4>
-        <div className="space-y-1 text-xs">
-          <div className="flex items-center">
-            <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
-            <span>Alpsabzug Events</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 bg-purple-500 rounded-full mr-2"></div>
-            <span>Festivals</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
-            <span>Family Events</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-            <span>Markets</span>
-          </div>
-          <div className="text-gray-500 mt-2">
-            {eventsWithCoords.length} events {showInteractive ? '(interactive mode)' : 'with markers'}
-          </div>
-        </div>
-      </div>
-      
-      {/* External Map Link - Only for reference */}
-      <div className="absolute bottom-4 right-4 z-10">
-        <a
-          href={getAllEventsMapUrl()}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center px-2 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-xs font-medium transition-all"
-          title="Open in Google Maps"
-        >
-          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-          </svg>
-          External
-        </a>
-      </div>
     </div>
   );
 }
