@@ -1,13 +1,13 @@
-import { prisma } from '@/lib/db';
+import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
     // Check if the database connection works
-    await prisma.$connect();
+    await db.$connect();
     
     // Try to create a simple test query
-    await prisma.$executeRaw`SELECT 1`;
+    await db.$executeRaw`SELECT 1`;
     
     return NextResponse.json({ 
       success: true, 
@@ -20,6 +20,6 @@ export async function POST(request: NextRequest) {
       error: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 });
   } finally {
-    await prisma.$disconnect();
+    await db.$disconnect();
   }
 }
