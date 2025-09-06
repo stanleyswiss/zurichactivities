@@ -6,7 +6,7 @@
 ## Project Overview
 ✅ **COMPLETED**: Next.js dashboard aggregating events near Schlieren, ZH with daily + on-demand scraping from official Swiss sources.
 
-**Current Status**: 77+ events from comprehensive sources, 200km coverage, English UI, advanced filtering
+**Current Status**: Real-data only from active scrapers (no sample data), 200km coverage, English UI, advanced filtering
 
 ## API Key & Rate Limits
 ```
@@ -130,16 +130,10 @@ SCRAPE_TOKEN="<admin_token_optional>"     # required for /api/migrate; used by /
 - **Focus**: Local Schlieren/Dietikon/Oetwil events
 
 ### 3. Zurich Tourism (`lib/scrapers/zurich-tourism.ts`)
-- **URL**: `https://www.zuerich.com/de/besuchen/veranstaltungen`
-- **Method**: HTML scraping
-- **Focus**: Major Zurich events
+Not currently invoked (previously sample-based). Will be enabled once a real scraper is implemented.
 
 ### 4. Municipal Scraper (`lib/scrapers/municipal-scraper.ts`)
-- **Targets**:
-  - Schlieren: `https://www.schlieren.ch/portrait/veranstaltungen`
-  - Dietikon: Municipality events
-  - Urdorf, Oberengstringen, etc.
-- **Method**: Configurable HTML scraping
+Not currently invoked (previously sample-based). Will be enabled once real sources are integrated.
 
 ## Key Functions
 
@@ -299,8 +293,8 @@ export const CATEGORIES = {
    ```
 
 2. **Update Event Data**:
-   - Use "Update Data" button in UI (runs comprehensive scraper)
-   - Or manually: `curl -X POST http://localhost:3000/api/scrape -d '{"sources":["COMPREHENSIVE"]}'`
+   - Use "Update Data" button in UI (runs real scrapers: ST, LIMMATTAL)
+   - Or manually: `curl -X POST http://localhost:3000/api/scrape -H 'Content-Type: application/json' -d '{"sources":["ST","LIMMATTAL"],"force":false}'`
 
 3. **Database Operations**:
    ```bash
@@ -313,7 +307,8 @@ export const CATEGORIES = {
 1. **Real API Endpoints** (High Priority):
    - Verify Switzerland Tourism API endpoint and data model
    - Implement JavaScript-capable scraping for Limmattal site (Playwright), respecting robots and ToS
-   - Connect to real municipal sources (replace sample data)
+   - Connect to real municipal sources (replace sample data) and re-enable MUNICIPAL
+   - Implement Zurich Tourism real scraper and re-enable ZURICH
 
 2. **Enhanced Features** (Medium Priority):
    - Email notifications for new events
@@ -342,3 +337,4 @@ export const CATEGORIES = {
 - Added political/administrative filter (drops Gemeindeversammlung, Wahlen, etc.).
 - Fixed multi-select handling in `/api/events` (category/source `in` filters).
 - UI: removed "COMPREHENSIVE" from source filters; corrected map colors for DE categories; event card shows source hostname.
+- Removed all sample-data generation and disabled sample-based scrapers (ZURICH, MUNICIPAL, TEST, COMPREHENSIVE). Only real scrapers (ST, LIMMATTAL) run.

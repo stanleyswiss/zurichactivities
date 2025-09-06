@@ -1,10 +1,6 @@
 import cron from 'node-cron';
 import { SwitzerlandTourismScraper } from './scrapers/switzerland-tourism';
 import { LimmattalScraper } from './scrapers/limmattal';
-import { TestScraper } from './scrapers/test-scraper';
-import { MunicipalScraper } from './scrapers/municipal-scraper';
-import { ZurichTourismScraper } from './scrapers/zurich-tourism';
-import { ComprehensiveTestScraper } from './scrapers/comprehensive-test-scraper';
 import { db } from './db';
 import { generateUniquenessHash, normalizeTitle } from './utils/deduplication';
 import { RawEvent } from '@/types/event';
@@ -106,18 +102,7 @@ export class EventScheduler {
       case 'LIMMATTAL':
         const limmattalScraper = new LimmattalScraper();
         return await limmattalScraper.scrapeEvents();
-      case 'TEST':
-        const testScraper = new TestScraper();
-        return await testScraper.scrapeEvents();
-      case 'MUNICIPAL':
-        const municipalScraper = new MunicipalScraper();
-        return await municipalScraper.scrapeEvents();
-      case 'ZURICH':
-        const zurichScraper = new ZurichTourismScraper();
-        return await zurichScraper.scrapeEvents();
-      case 'COMPREHENSIVE':
-        const comprehensiveScraper = new ComprehensiveTestScraper();
-        return await comprehensiveScraper.scrapeEvents();
+      // Only real data sources are enabled
       default:
         throw new Error(`Unknown source: ${source}`);
     }

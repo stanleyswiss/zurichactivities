@@ -31,7 +31,7 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          sources: ['COMPREHENSIVE'],
+          sources: ['ST', 'LIMMATTAL'],
           force: false
         })
       });
