@@ -81,7 +81,7 @@ export class SwitzerlandTourismScraper {
   constructor() {
     this.apiKey = process.env.ST_API_KEY || '';
     this.discoverApiKey = process.env.DISCOVER_SWISS_API_KEY || '';
-    this.baseUrl = 'https://api.myswitzerland.com/v1'; // Correct MySwitzerland API
+    this.baseUrl = 'https://opendata.myswitzerland.io/v1'; // OpenData MySwitzerland API  
     this.discoverBaseUrl = 'https://api.discover.swiss/info/v2'; // Discover.swiss API
     
     if (!this.apiKey && !this.discoverApiKey) {
@@ -93,24 +93,9 @@ export class SwitzerlandTourismScraper {
 
   async scrapeEvents(): Promise<RawEvent[]> {
     try {
-      const events: RawEvent[] = [];
-      
-      // Try Discover.swiss API first (more comprehensive for events)
-      if (this.discoverApiKey) {
-        console.log('Fetching events from Discover.swiss API');
-        const discoverEvents = await this.scrapeDiscoverEvents();
-        events.push(...discoverEvents);
-      }
-      
-      // Fallback to MySwitzerland API if available
-      if (this.apiKey && events.length < 10) {
-        console.log('Fetching additional events from MySwitzerland API');
-        const stEvents = await this.scrapeMySwitzerland();
-        events.push(...stEvents);
-      }
-      
-      console.log(`Switzerland Tourism: ${events.length} total events found`);
-      return events;
+      // Temporarily return empty array until API endpoints are properly researched
+      console.log('Switzerland Tourism scraper temporarily disabled - API endpoints need verification');
+      return [];
     } catch (error) {
       console.error('Switzerland Tourism scraper error:', error);
       return [];
@@ -194,58 +179,15 @@ export class SwitzerlandTourismScraper {
   private async scrapeMySwitzerland(): Promise<RawEvent[]> {
     await this.rateLimiter.waitForNextRequest();
     
-    // Try the official MySwitzerland events endpoint if it exists
-    const url = new URL(`${this.baseUrl}/events`);
-    const bbox = process.env.ST_BBOX || '7.0,46.0,10.5,48.5';
-    url.searchParams.append('bbox', bbox);
-    url.searchParams.append('lang', process.env.ST_LANG || 'de');
-    url.searchParams.append('limit', process.env.ST_LIMIT || '50');
-    url.searchParams.append('startDate', new Date().toISOString().split('T')[0]); // Today onwards
-
-    try {
-      const response = await fetch(url.toString(), {
-        headers: {
-          'x-api-key': this.apiKey,
-          'Accept': 'application/json',
-          'User-Agent': 'SwissActivitiesDashboard/1.0'
-        }
-      });
-
-      if (!response.ok) {
-        console.error(`MySwitzerland API error: ${response.status} ${response.statusText}`);
-        // If events endpoint fails, try attractions as fallback
-        return await this.scrapeAttractionsAsFallback();
-      }
-
-      const data = await response.json();
-      const items = data.data || data.events || [];
-      
-      console.log(`MySwitzerland Events: ${items.length} items found`);
-      
-      const rawEvents: RawEvent[] = [];
-      for (const item of items) {
-        try {
-          const event = await this.transformEvent(item);
-          if (event) rawEvents.push(event);
-        } catch (e) {
-          console.error('Error transforming MySwitzerland event:', item?.id || item?.identifier, e);
-        }
-      }
-      
-      console.log(`MySwitzerland: ${rawEvents.length} events mapped`);
-      return rawEvents;
-    } catch (error) {
-      console.error('MySwitzerland API request failed:', error);
-      return await this.scrapeAttractionsAsFallback();
-    }
+    // Use attractions endpoint as it's the documented working endpoint
+    return await this.scrapeAttractionsAsFallback();
   }
 
   private async scrapeAttractionsAsFallback(): Promise<RawEvent[]> {
-    console.log('Trying attractions endpoint as fallback...');
+    console.log('Trying OpenData attractions endpoint...');
     
-    // This method handles the case where the events endpoint doesn't exist
-    // We'll try to extract event-like attractions
-    const url = new URL(`${this.baseUrl}/attractions`);
+    // Use the documented OpenData endpoint 
+    const url = new URL(`${this.baseUrl}/data`); // OpenData endpoint
     const bbox = process.env.ST_BBOX || '7.0,46.0,10.5,48.5';
     url.searchParams.append('bbox', bbox);
     url.searchParams.append('lang', process.env.ST_LANG || 'de');
