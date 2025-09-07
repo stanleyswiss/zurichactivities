@@ -175,8 +175,9 @@ export class SwitzerlandTourismScraper {
       // Try common response formats
       items = data.value || data.events || data.data || data.results || data.items || [];
       // Handle nested structures
-      if (!Array.isArray(items) && typeof items === 'object') {
-        items = items.events || items.data || items.results || items.items || [];
+      if (!Array.isArray(items) && typeof items === 'object' && items !== null) {
+        const nestedItems = (items as any).events || (items as any).data || (items as any).results || (items as any).items || [];
+        items = Array.isArray(nestedItems) ? nestedItems : [];
       }
     }
     
