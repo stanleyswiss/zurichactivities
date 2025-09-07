@@ -57,19 +57,26 @@ export class SwitzerlandTourismScraper {
 
   constructor() {
     this.apiKey = process.env.ST_API_KEY || '';
-    this.baseUrl = process.env.ST_EVENTS_URL || 'https://opendata.myswitzerland.io/v1/attractions';
+    this.baseUrl = process.env.ST_EVENTS_URL; // Only use if explicitly set
     this.searchUrl = process.env.ST_SEARCH_URL || 'https://api.discover.swiss/info/v2/search';
-    this.subscriptionKey = process.env.ST_SUBSCRIPTION_KEY || process.env.DISCOVER_SWISS_API_KEY || '';
-    if (!this.baseUrl && !this.searchUrl) {
-      throw new Error('Configure ST_EVENTS_URL (GET + x-api-key) or ST_SEARCH_URL (POST + Ocp-Apim-Subscription-Key)');
+    this.subscriptionKey = process.env.ST_SUBSCRIPTION_KEY || '37747c97733b44d68e44ff0f0189e08b'; // From conversation
+    
+    // Prefer the Discover Swiss API for events
+    if (!this.baseUrl && this.subscriptionKey) {
+      console.log('Using Discover Swiss API for events');
+    } else if (this.baseUrl) {
+      console.log('Using OpenData attractions endpoint');  
+    } else {
+      throw new Error('Configure ST_EVENTS_URL (GET + x-api-key) or provide ST_SUBSCRIPTION_KEY for Discover Swiss API');
     }
   }
 
   async scrapeEvents(): Promise<RawEvent[]> {
     try {
       await this.rateLimiter.waitForNextRequest();
+      // Prefer search API for events, fallback to attractions
+      if (this.searchUrl && this.subscriptionKey) return await this.scrapeViaSearchPost();
       if (this.baseUrl) return await this.scrapeViaEventsGet();
-      if (this.searchUrl) return await this.scrapeViaSearchPost();
       return [];
     } catch (error) {
       console.error('Switzerland Tourism scraper error:', error);
