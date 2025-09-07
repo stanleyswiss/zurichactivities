@@ -122,7 +122,7 @@ ST_EVENTS_URL="https://opendata.myswitzerland.io/v1/attractions"  # Events are n
 ST_SEARCH_URL="https://api.discover.swiss/info/v2/search"  # If using POST search API (Ocp-Apim-Subscription-Key)
 ST_SUBSCRIPTION_KEY="<subscription_key_if_needed>"        # Key for ST_SEARCH_URL
 DISCOVER_SWISS_API_KEY="<discover_swiss_primary_key>"     # Primary key for Discover Swiss API
-ST_BBOX="8.0,47.0,9.0,48.0"              # Optional Zurich-region bbox
+ST_BBOX="7.0,46.0,10.5,48.5"            # Expanded bbox for Alpine regions (Alpsabzug events)
 ST_LANG="de"                              # Optional
 ST_LIMIT="100"                            # Optional
 ```

@@ -81,7 +81,7 @@ export class SwitzerlandTourismScraper {
     if (!this.baseUrl) return [];
     if (!this.apiKey) throw new Error('ST_API_KEY missing for ST_EVENTS_URL');
 
-    const bbox = process.env.ST_BBOX || '8.0,47.0,9.0,48.0'; // lon_min, lat_min, lon_max, lat_max
+    const bbox = process.env.ST_BBOX || '7.0,46.0,10.5,48.5'; // Expanded for Alpine regions (Alpsabzug events)
     const url = new URL(this.baseUrl);
     url.searchParams.append('bbox', bbox);
     url.searchParams.append('lang', process.env.ST_LANG || 'de');
@@ -225,41 +225,56 @@ export class SwitzerlandTourismScraper {
     const title: string | undefined = node.name || node.title;
     if (!title) return null;
 
-    // Heuristic: include only if current month/season appears in classifications to keep it relevant
+    const titleLower = title.toLowerCase();
+    const description = node.abstract || node.description || '';
+    const descLower = description.toLowerCase();
+    const combinedText = `${titleLower} ${descLower}`;
+    
+    // Priority for Alpsabzug events - always include if detected
+    const isAlpsabzug = /alp(s)?abzug|alp(s)?abfahrt|viehscheid|d[ée]salpe|alpfest|sennen|alpaufzug|tierumfahrt|alpweide|sennerei/.test(combinedText);
+    
+    // Heuristic: include if Alpsabzug OR if current month/season appears in classifications
     const classifications = Array.isArray(node.classification) ? node.classification : [];
-    const now = new Date();
-    const monthNames = ['january','february','march','april','may','june','july','august','september','october','november','december'];
-    const currentMonth = monthNames[now.getMonth()];
-    const seasonNames = ['winter','spring','summer','autumn'];
-    const currentSeason = seasonNames[Math.floor(((now.getMonth()+1)%12)/3)];
-    let timeRelevant = false;
-    for (const c of classifications) {
-      const name = (c?.name || '').toLowerCase();
-      const values: any[] = c?.values || [];
-      const valueNames = values.map(v => (v?.name || '').toLowerCase());
-      if (name === 'month' && (valueNames.includes(currentMonth) || valueNames.includes('allyear'))) timeRelevant = true;
-      if (name === 'seasons' && (valueNames.includes(currentSeason) || valueNames.includes('allyear'))) timeRelevant = true;
+    let timeRelevant = isAlpsabzug; // Always relevant if Alpsabzug
+    
+    if (!timeRelevant) {
+      const now = new Date();
+      const monthNames = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+      const currentMonth = monthNames[now.getMonth()];
+      const seasonNames = ['winter','spring','summer','autumn'];
+      const currentSeason = seasonNames[Math.floor(((now.getMonth()+1)%12)/3)];
+      
+      for (const c of classifications) {
+        const name = (c?.name || '').toLowerCase();
+        const values: any[] = c?.values || [];
+        const valueNames = values.map(v => (v?.name || '').toLowerCase());
+        if (name === 'month' && (valueNames.includes(currentMonth) || valueNames.includes('allyear'))) timeRelevant = true;
+        if (name === 'seasons' && (valueNames.includes(currentSeason) || valueNames.includes('allyear'))) timeRelevant = true;
+      }
     }
+    
     if (!timeRelevant && classifications.length > 0) return null;
-
-    const description: string | undefined = node.abstract || node.description;
     const url: string | undefined = node.url || node.links?.self;
     const imageUrl: string | undefined = node.photo || node.image?.url || (Array.isArray(node.image) ? node.image[0] : undefined);
     const lat: number | undefined = node.geo?.latitude;
     const lon: number | undefined = node.geo?.longitude;
 
-    // Category inference
+    // Category inference - prioritize Alpsabzug
     let category: string | undefined;
-    for (const c of classifications) {
-      const name = (c?.name || '').toLowerCase();
-      const values: any[] = c?.values || [];
-      const combined = [name, ...values.map((v: any) => (v?.name || v?.title || '').toLowerCase())].join(' ');
-      if (!category) {
-        if (combined.includes('culture') || combined.includes('museum') || combined.includes('kultur')) category = CATEGORIES.CULTURE;
-        else if (combined.includes('family') || combined.includes('famil')) category = CATEGORIES.FAMILY;
-        else if (combined.includes('market') || combined.includes('markt')) category = CATEGORIES.MARKET;
-        else if (combined.includes('sport') || combined.includes('active')) category = CATEGORIES.SPORTS;
-        else if (combined.includes('nature')) category = CATEGORIES.SEASONAL;
+    if (isAlpsabzug) {
+      category = CATEGORIES.ALPSABZUG;
+    } else {
+      for (const c of classifications) {
+        const name = (c?.name || '').toLowerCase();
+        const values: any[] = c?.values || [];
+        const combined = [name, ...values.map((v: any) => (v?.name || v?.title || '').toLowerCase())].join(' ');
+        if (!category) {
+          if (combined.includes('culture') || combined.includes('museum') || combined.includes('kultur')) category = CATEGORIES.CULTURE;
+          else if (combined.includes('family') || combined.includes('famil')) category = CATEGORIES.FAMILY;
+          else if (combined.includes('market') || combined.includes('markt')) category = CATEGORIES.MARKET;
+          else if (combined.includes('sport') || combined.includes('active')) category = CATEGORIES.SPORTS;
+          else if (combined.includes('nature')) category = CATEGORIES.SEASONAL;
+        }
       }
     }
 
