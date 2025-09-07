@@ -1,9 +1,7 @@
 {
-  "buildCommand": "yarn build",
-  "installCommand": "yarn install",
   "functions": {
-    "src/app/api/**": {
-      "maxDuration": 30
+    "src/app/api/scrape/route.ts": {
+      "maxDuration": 10
     }
   },
   "crons": [

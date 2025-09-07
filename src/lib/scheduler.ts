@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { SwitzerlandTourismScraper } from './scrapers/switzerland-tourism';
 import { LimmattalScraper } from './scrapers/limmattal';
+import { AlpsabzugScraper } from './scrapers/alpsabzug-scraper';
 import { db } from './db';
 import { generateUniquenessHash, normalizeTitle } from './utils/deduplication';
 import { RawEvent } from '@/types/event';
@@ -99,9 +100,10 @@ export class EventScheduler {
   }
 
   private async scrapeSource(source: string): Promise<RawEvent[]> {
-    // Add timeout protection for individual scrapers
+    // Add timeout protection for individual scrapers - longer timeout for Playwright
+    const timeoutMs = source === 'ALPSABZUG' ? 50000 : 20000; // 50s for Playwright, 20s for others
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error(`${source} scraper timed out after 20 seconds`)), 20000);
+      setTimeout(() => reject(new Error(`${source} scraper timed out after ${timeoutMs/1000} seconds`)), timeoutMs);
     });
 
     try {
@@ -122,13 +124,9 @@ export class EventScheduler {
         const limmattalScraper = new LimmattalScraper();
         return await limmattalScraper.scrapeEvents();
       case 'ALPSABZUG':
-        // Use ST scraper but filter for Alpsabzug events only
-        const alpsabzugFromST = new SwitzerlandTourismScraper();
-        const allSTEvents = await alpsabzugFromST.scrapeEvents();
-        return allSTEvents.filter(event => 
-          event.category === 'alpsabzug' || 
-          this.isAlpsabzugEvent(event.title, event.description || '')
-        );
+        // Use new Playwright-based scraper for comprehensive Alpsabzug event collection
+        const alpsabzugScraper = new AlpsabzugScraper();
+        return await alpsabzugScraper.scrapeEvents();
       // Only real data sources are enabled
       default:
         throw new Error(`Unknown source: ${source}`);

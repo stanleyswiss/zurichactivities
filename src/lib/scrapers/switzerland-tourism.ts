@@ -30,6 +30,10 @@ interface SwitzerlandTourismEvent {
 class RateLimiter {
   private lastRequest = 0;
   private minInterval: number;
+  private requestCount = 0;
+  private windowStart = Date.now();
+  private readonly maxRequestsPerWindow = 50; // Conservative limit
+  private readonly windowMs = 60 * 1000; // 1 minute window
 
   constructor(requestsPerSecond: number) {
     this.minInterval = 1000 / requestsPerSecond;
@@ -37,193 +41,317 @@ class RateLimiter {
 
   async waitForNextRequest(): Promise<void> {
     const now = Date.now();
-    const timeSinceLastRequest = now - this.lastRequest;
     
+    // Reset window if needed
+    if (now - this.windowStart > this.windowMs) {
+      this.requestCount = 0;
+      this.windowStart = now;
+    }
+    
+    // Check if we've hit the window limit
+    if (this.requestCount >= this.maxRequestsPerWindow) {
+      const waitTime = this.windowMs - (now - this.windowStart);
+      if (waitTime > 0) {
+        console.log(`Rate limit reached, waiting ${waitTime}ms`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        this.requestCount = 0;
+        this.windowStart = Date.now();
+      }
+    }
+    
+    // Enforce minimum interval between requests
+    const timeSinceLastRequest = now - this.lastRequest;
     if (timeSinceLastRequest < this.minInterval) {
       const waitTime = this.minInterval - timeSinceLastRequest;
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
     
     this.lastRequest = Date.now();
+    this.requestCount++;
   }
 }
 
 export class SwitzerlandTourismScraper {
   private apiKey: string;
-  private baseUrl?: string; // GET events endpoint (x-api-key)
-  private searchUrl?: string; // POST search endpoint (Ocp-Apim-Subscription-Key)
-  private subscriptionKey?: string;
-  private rateLimiter = new RateLimiter(1); // 1 request per second
+  private discoverApiKey: string;
+  private baseUrl: string; // MySwitzerland API base
+  private discoverBaseUrl: string; // Discover.swiss API base
+  private rateLimiter = new RateLimiter(0.5); // 0.5 requests per second to be safe
 
   constructor() {
     this.apiKey = process.env.ST_API_KEY || '';
-    this.baseUrl = process.env.ST_EVENTS_URL; // Only use if explicitly set
-    this.searchUrl = process.env.ST_SEARCH_URL || 'https://api.discover.swiss/info/v2/search';
-    this.subscriptionKey = process.env.ST_SUBSCRIPTION_KEY || '37747c97733b44d68e44ff0f0189e08b'; // From conversation
+    this.discoverApiKey = process.env.DISCOVER_SWISS_API_KEY || '';
+    this.baseUrl = 'https://api.myswitzerland.com/v1'; // Correct MySwitzerland API
+    this.discoverBaseUrl = 'https://api.discover.swiss/info/v2'; // Discover.swiss API
     
-    // Prefer the Discover Swiss API for events
-    if (!this.baseUrl && this.subscriptionKey) {
-      console.log('Using Discover Swiss API for events');
-    } else if (this.baseUrl) {
-      console.log('Using OpenData attractions endpoint');  
-    } else {
-      throw new Error('Configure ST_EVENTS_URL (GET + x-api-key) or provide ST_SUBSCRIPTION_KEY for Discover Swiss API');
+    if (!this.apiKey && !this.discoverApiKey) {
+      throw new Error('Either ST_API_KEY or DISCOVER_SWISS_API_KEY is required');
     }
+    
+    console.log(`Using Switzerland Tourism APIs - MySwitzerland: ${!!this.apiKey}, Discover: ${!!this.discoverApiKey}`);
   }
 
   async scrapeEvents(): Promise<RawEvent[]> {
     try {
-      await this.rateLimiter.waitForNextRequest();
-      // Prefer search API for events, fallback to attractions
-      if (this.searchUrl && this.subscriptionKey) return await this.scrapeViaSearchPost();
-      if (this.baseUrl) return await this.scrapeViaEventsGet();
-      return [];
+      const events: RawEvent[] = [];
+      
+      // Try Discover.swiss API first (more comprehensive for events)
+      if (this.discoverApiKey) {
+        console.log('Fetching events from Discover.swiss API');
+        const discoverEvents = await this.scrapeDiscoverEvents();
+        events.push(...discoverEvents);
+      }
+      
+      // Fallback to MySwitzerland API if available
+      if (this.apiKey && events.length < 10) {
+        console.log('Fetching additional events from MySwitzerland API');
+        const stEvents = await this.scrapeMySwitzerland();
+        events.push(...stEvents);
+      }
+      
+      console.log(`Switzerland Tourism: ${events.length} total events found`);
+      return events;
     } catch (error) {
       console.error('Switzerland Tourism scraper error:', error);
       return [];
     }
   }
 
-  private async scrapeViaEventsGet(): Promise<RawEvent[]> {
-    if (!this.baseUrl) return [];
-    if (!this.apiKey) throw new Error('ST_API_KEY missing for ST_EVENTS_URL');
+  private async scrapeDiscoverEvents(): Promise<RawEvent[]> {
+    await this.rateLimiter.waitForNextRequest();
+    
+    const url = new URL(`${this.discoverBaseUrl}/search`);
+    
+    // Search for events in Switzerland with time-based filtering
+    const searchPayload = {
+      query: {
+        bool: {
+          must: [
+            { term: { "@type": "Event" } },
+            {
+              geo_bounding_box: {
+                location: {
+                  top_left: { lat: 48.5, lon: 7.0 },
+                  bottom_right: { lat: 46.0, lon: 10.5 }
+                }
+              }
+            },
+            {
+              range: {
+                startDate: {
+                  gte: "now",
+                  lte: "now+6M"
+                }
+              }
+            }
+          ]
+        }
+      },
+      size: 100
+    };
 
-    const bbox = process.env.ST_BBOX || '7.0,46.0,10.5,48.5'; // Expanded for Alpine regions (Alpsabzug events)
-    const url = new URL(this.baseUrl);
-    url.searchParams.append('bbox', bbox);
-    url.searchParams.append('lang', process.env.ST_LANG || 'de');
-    url.searchParams.append('limit', process.env.ST_LIMIT || '100');
-    // Some deployments may not support date filters; omit for broad results
-
-    const response = await fetch(url.toString(), {
-      headers: {
-        'x-api-key': this.apiKey,
-        'Accept': 'application/json',
-        'User-Agent': 'SwissActivitiesDashboard/1.0'
-      }
-    });
-
-    if (!response.ok) {
-      console.error(`ST API error: ${response.status} ${response.statusText}`);
-      console.error('ST API URL:', url.toString());
-      console.error('ST API Key present:', !!this.apiKey);
-      // Return empty array instead of throwing to prevent 504 timeouts
-      return [];
-    }
-
-    let data;
     try {
-      const responseText = await response.text();
-      data = JSON.parse(responseText);
-    } catch (jsonError) {
-      console.error('ST API JSON parse error:', jsonError);
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'Ocp-Apim-Subscription-Key': this.discoverApiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Accept-Language': process.env.ST_LANG || 'de',
+          'User-Agent': 'SwissActivitiesDashboard/1.0'
+        },
+        body: JSON.stringify(searchPayload)
+      });
+
+      if (!response.ok) {
+        console.error(`Discover.swiss API error: ${response.status} ${response.statusText}`);
+        return [];
+      }
+
+      const data = await response.json();
+      const items = data.hits?.hits || [];
+      
+      console.log(`Discover.swiss: ${items.length} events found`);
+      
+      const rawEvents: RawEvent[] = [];
+      for (const item of items) {
+        try {
+          const event = await this.transformSearchEvent(item._source || item);
+          if (event) rawEvents.push(event);
+        } catch (e) {
+          console.error('Error transforming Discover event:', item?._source?.identifier || item?.identifier, e);
+        }
+      }
+      
+      console.log(`Discover.swiss: ${rawEvents.length} events mapped`);
+      return rawEvents;
+    } catch (error) {
+      console.error('Discover.swiss API request failed:', error);
       return [];
     }
-    // Attempt to normalize common shapes: array | {events} | {data} | {value} | {items} | {results}
-    let items: any[] = [];
-    if (Array.isArray(data)) {
-      items = data;
-    } else if (data) {
-      // opendata.myswitzerland.io returns: { meta: {...}, data: [...] }
-      if (Array.isArray(data.data)) {
-        items = data.data;
-      } else {
-        items = data.events || data.value || data.items || data.results || [];
-        // Some payloads nest under data.data
-        if (!Array.isArray(items) && data.data && Array.isArray(data.data.data)) {
-          items = data.data.data;
-        }
-      }
-    }
-    console.log('Switzerland Tourism (GET) payload keys:', Object.keys(data || {}), 'arrayLen:', Array.isArray(items) ? items.length : 0);
-    const rawEvents: RawEvent[] = [];
-    for (const node of items as any[]) {
-      try {
-        if (node && (node.startDate || node.endDate)) {
-          const raw = await this.transformEvent(node as SwitzerlandTourismEvent);
-          if (raw) rawEvents.push(raw);
-        } else {
-          const ra = await this.transformAttraction(node);
-          if (ra) rawEvents.push(ra);
-        }
-      } catch (e) {
-        console.error('Error transforming ST item (GET):', (node as any)?.id || (node as any)?.identifier, e);
-      }
-    }
-    console.log(`Switzerland Tourism (GET): ${rawEvents.length} items mapped`);
-    return rawEvents;
   }
 
-  private async scrapeViaSearchPost(): Promise<RawEvent[]> {
-    if (!this.searchUrl) return [];
-    const key = this.subscriptionKey || this.apiKey;
-    if (!key) throw new Error('ST_SUBSCRIPTION_KEY or ST_API_KEY required for ST_SEARCH_URL');
+  private async scrapeMySwitzerland(): Promise<RawEvent[]> {
+    await this.rateLimiter.waitForNextRequest();
+    
+    // Try the official MySwitzerland events endpoint if it exists
+    const url = new URL(`${this.baseUrl}/events`);
+    const bbox = process.env.ST_BBOX || '7.0,46.0,10.5,48.5';
+    url.searchParams.append('bbox', bbox);
+    url.searchParams.append('lang', process.env.ST_LANG || 'de');
+    url.searchParams.append('limit', process.env.ST_LIMIT || '50');
+    url.searchParams.append('startDate', new Date().toISOString().split('T')[0]); // Today onwards
 
-    const lat = parseFloat(process.env.NEXT_PUBLIC_SCHLIEREN_LAT || '47.396');
-    const lon = parseFloat(process.env.NEXT_PUBLIC_SCHLIEREN_LON || '8.447');
-    const select = 'identifier,name,startDate,endDate,location,offers,url,image,description';
-    const lang = process.env.ST_LANG || 'de';
-    const limit = parseInt(process.env.ST_LIMIT || '100');
-
-    const response = await fetch(`${this.searchUrl}?scoringReferencePoint=${lon},${lat}`, {
-      method: 'POST',
-      headers: {
-        'Ocp-Apim-Subscription-Key': key,
-        'Accept-Language': lang,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'SwissActivitiesDashboard/1.0'
-      },
-      body: JSON.stringify({
-        type: ['Event'],
-        select,
-        top: limit
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`ST Search API error: ${response.status} ${response.statusText}`, errorText);
-      throw new Error(`ST Search API error: ${response.status} ${response.statusText}`);
-    }
-
-    let data;
     try {
-      const responseText = await response.text();
-      data = JSON.parse(responseText);
-    } catch (jsonError) {
-      console.error('Discover Swiss API JSON parse error:', jsonError);
+      const response = await fetch(url.toString(), {
+        headers: {
+          'x-api-key': this.apiKey,
+          'Accept': 'application/json',
+          'User-Agent': 'SwissActivitiesDashboard/1.0'
+        }
+      });
+
+      if (!response.ok) {
+        console.error(`MySwitzerland API error: ${response.status} ${response.statusText}`);
+        // If events endpoint fails, try attractions as fallback
+        return await this.scrapeAttractionsAsFallback();
+      }
+
+      const data = await response.json();
+      const items = data.data || data.events || [];
+      
+      console.log(`MySwitzerland Events: ${items.length} items found`);
+      
+      const rawEvents: RawEvent[] = [];
+      for (const item of items) {
+        try {
+          const event = await this.transformEvent(item);
+          if (event) rawEvents.push(event);
+        } catch (e) {
+          console.error('Error transforming MySwitzerland event:', item?.id || item?.identifier, e);
+        }
+      }
+      
+      console.log(`MySwitzerland: ${rawEvents.length} events mapped`);
+      return rawEvents;
+    } catch (error) {
+      console.error('MySwitzerland API request failed:', error);
+      return await this.scrapeAttractionsAsFallback();
+    }
+  }
+
+  private async scrapeAttractionsAsFallback(): Promise<RawEvent[]> {
+    console.log('Trying attractions endpoint as fallback...');
+    
+    // This method handles the case where the events endpoint doesn't exist
+    // We'll try to extract event-like attractions
+    const url = new URL(`${this.baseUrl}/attractions`);
+    const bbox = process.env.ST_BBOX || '7.0,46.0,10.5,48.5';
+    url.searchParams.append('bbox', bbox);
+    url.searchParams.append('lang', process.env.ST_LANG || 'de');
+    url.searchParams.append('limit', process.env.ST_LIMIT || '50');
+
+    try {
+      const response = await fetch(url.toString(), {
+        headers: {
+          'x-api-key': this.apiKey,
+          'Accept': 'application/json',
+          'User-Agent': 'SwissActivitiesDashboard/1.0'
+        }
+      });
+
+      if (!response.ok) {
+        console.error(`MySwitzerland Attractions fallback error: ${response.status} ${response.statusText}`);
+        return [];
+      }
+
+      const data = await response.json();
+      const items = data.data || [];
+      
+      console.log(`MySwitzerland Attractions (fallback): ${items.length} items found`);
+      
+      const rawEvents: RawEvent[] = [];
+      for (const item of items) {
+        try {
+          const event = await this.transformAttraction(item);
+          if (event) rawEvents.push(event);
+        } catch (e) {
+          console.error('Error transforming attraction:', item?.identifier, e);
+        }
+      }
+      
+      console.log(`MySwitzerland Attractions (fallback): ${rawEvents.length} events mapped`);
+      return rawEvents;
+    } catch (error) {
+      console.error('MySwitzerland Attractions fallback failed:', error);
       return [];
     }
-    console.log('Discover Swiss API response keys:', Object.keys(data || {}));
+  }
+
+  private isEventLikeOffer(offer: any): boolean {
+    if (!offer.name) return false;
     
-    // Handle different API response formats
-    let items: any[] = [];
-    if (Array.isArray(data)) {
-      items = data;
-    } else if (data) {
-      // Try common response formats
-      items = data.value || data.events || data.data || data.results || data.items || [];
-      // Handle nested structures
-      if (!Array.isArray(items) && typeof items === 'object' && items !== null) {
-        const nestedItems = (items as any).events || (items as any).data || (items as any).results || (items as any).items || [];
-        items = Array.isArray(nestedItems) ? nestedItems : [];
-      }
+    const name = offer.name.toLowerCase();
+    const eventKeywords = [
+      'führung', 'tour', 'fest', 'festival', 'konzert', 'markt', 'event',
+      'rundfahrt', 'rundgang', 'besichtigung', 'vorführung', 'aufführung',
+      'workshop', 'kurs', 'seminar', 'veranstaltung'
+    ];
+    
+    return eventKeywords.some(keyword => name.includes(keyword));
+  }
+
+  private async transformOffer(offer: any): Promise<RawEvent | null> {
+    if (!offer.name || !offer.validFrom || !offer.validThrough) {
+      return null;
     }
+
+    const startTime = new Date(offer.validFrom);
+    const endTime = new Date(offer.validThrough);
     
-    console.log(`Discover Swiss API items found: ${Array.isArray(items) ? items.length : 0}`);
+    // Skip if dates are too far in the past or future
+    const now = new Date();
+    const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    const oneYearFromNow = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
     
-    const rawEvents: RawEvent[] = [];
-    for (const node of items as any[]) {
-      try {
-        const raw = await this.transformSearchEvent(node);
-        if (raw) rawEvents.push(raw);
-      } catch (e) {
-        console.error('Error transforming ST event (POST):', node?.identifier || node?.id, e);
-      }
+    if (endTime < oneYearAgo || startTime > oneYearFromNow) {
+      return null;
     }
-    console.log(`Switzerland Tourism (POST search): ${rawEvents.length} events`);
-    return rawEvents;
+
+    // Extract price information
+    let priceMin: number | undefined;
+    let currency = 'CHF';
+    
+    if (offer.priceSpecification) {
+      priceMin = offer.priceSpecification.minPrice;
+      currency = offer.priceSpecification.priceCurrency || 'CHF';
+    }
+
+    // Determine category based on offer name
+    let category: string | undefined = this.mapCategory(offer.name);
+
+    return {
+      source: SOURCES.ST,
+      sourceEventId: offer.identifier || offer.url,
+      title: offer.name,
+      description: offer.priceSpecification?.description || `Angebot gültig von ${offer.validFrom} bis ${offer.validThrough}`,
+      lang: process.env.ST_LANG || 'de',
+      category,
+      startTime,
+      endTime,
+      venueName: undefined,
+      street: undefined,
+      postalCode: undefined,
+      city: undefined,
+      country: 'CH',
+      lat: undefined,
+      lon: undefined,
+      priceMin,
+      priceMax: undefined,
+      currency,
+      url: offer.url,
+      imageUrl: undefined
+    };
   }
 
   // Map TouristAttraction-like nodes to our RawEvent model when Events feed is unavailable
