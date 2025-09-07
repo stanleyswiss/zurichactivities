@@ -4,10 +4,32 @@ import { geocodeAddress } from '@/lib/utils/geocoding';
 
 export class AlpsabzugScraper {
   private baseUrl = 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/';
+  // Try alternative API endpoints that might be used by the website
+  private apiUrls = [
+    'https://api.myswitzerland.com/v1/events?category=alpabzug',
+    'https://api.myswitzerland.com/v1/events?rubrik=alpabzuegeaelplerfeste', 
+    'https://content.myswitzerland.com/events?type=alpabzug'
+  ];
 
   async scrapeEvents(): Promise<RawEvent[]> {
+    // Try API endpoints first before falling back to HTML scraping
+    for (const apiUrl of this.apiUrls) {
+      try {
+        console.log(`Trying API endpoint: ${apiUrl}`);
+        const events = await this.tryApiEndpoint(apiUrl);
+        if (events.length > 0) {
+          console.log(`Found ${events.length} events from API`);
+          return events;
+        }
+      } catch (error) {
+        console.log(`API endpoint failed: ${apiUrl} - ${error}`);
+        continue;
+      }
+    }
+
+    // Fallback to HTML scraping
     try {
-      console.log('Scraping Alpsabzug events from myswitzerland.com...');
+      console.log('Falling back to HTML scraping for Alpsabzug events...');
       
       const response = await fetch(this.baseUrl, {
         headers: {
@@ -115,6 +137,85 @@ export class AlpsabzugScraper {
     } catch (error) {
       console.error('Alpsabzug scraper error:', error);
       return [];
+    }
+  }
+
+  private async tryApiEndpoint(apiUrl: string): Promise<RawEvent[]> {
+    const response = await fetch(apiUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // Try to parse the API response (structure may vary)
+    if (Array.isArray(data)) {
+      return this.parseApiEvents(data);
+    } else if (data.events && Array.isArray(data.events)) {
+      return this.parseApiEvents(data.events);
+    } else if (data.data && Array.isArray(data.data)) {
+      return this.parseApiEvents(data.data);
+    }
+
+    return [];
+  }
+
+  private parseApiEvents(eventData: any[]): RawEvent[] {
+    const events: RawEvent[] = [];
+
+    for (const item of eventData) {
+      try {
+        // Try different possible structures for event data
+        const title = item.title || item.name || item.eventTitle || '';
+        const description = item.description || item.teaser || '';
+        
+        if (!title || !this.isAlpsabzugEvent(title, description)) {
+          continue;
+        }
+
+        const startDate = this.parseApiDate(item.startDate || item.date || item.eventDate);
+        if (!startDate) continue;
+
+        const location = item.location || item.city || item.place || this.extractLocationFromText(title);
+        
+        events.push({
+          source: SOURCES.ALPSABZUG,
+          sourceEventId: `alpsabzug-api-${item.id || this.generateId(title, startDate)}`,
+          title,
+          description: description || `Traditional Alpine cattle descent event in ${location}`,
+          lang: 'de',
+          category: CATEGORIES.ALPSABZUG,
+          startTime: startDate,
+          city: location,
+          country: 'CH',
+          url: item.url || item.link,
+          lat: item.lat || item.latitude,
+          lon: item.lon || item.longitude || item.lng
+        });
+      } catch (error) {
+        console.error('Error parsing API event:', error);
+        continue;
+      }
+    }
+
+    return events;
+  }
+
+  private parseApiDate(dateString: string): Date | null {
+    if (!dateString) return null;
+    
+    try {
+      const date = new Date(dateString);
+      return isNaN(date.getTime()) ? null : date;
+    } catch {
+      return null;
     }
   }
 
