@@ -298,7 +298,7 @@ export class AlpsabzugScraper {
       for (const scriptContent of jsonLdScripts) {
         try {
           const data = JSON.parse(scriptContent);
-          const extractedEvents = this.parseJsonLdData(data);
+          const extractedEvents = await this.parseJsonLdData(data);
           events.push(...extractedEvents);
         } catch (error) {
           // Continue with next script
@@ -311,22 +311,22 @@ export class AlpsabzugScraper {
     }
   }
 
-  private parseJsonLdData(data: any): RawEvent[] {
+  private async parseJsonLdData(data: any): Promise<RawEvent[]> {
     const events: RawEvent[] = [];
     
     // Handle different JSON-LD structures
     if (Array.isArray(data)) {
       for (const item of data) {
-        const event = this.parseJsonLdEvent(item);
+        const event = await this.parseJsonLdEvent(item);
         if (event) events.push(event);
       }
     } else if (data['@type'] === 'Event' || data.type === 'Event') {
-      const event = this.parseJsonLdEvent(data);
+      const event = await this.parseJsonLdEvent(data);
       if (event) events.push(event);
     } else if (data['@graph']) {
       for (const item of data['@graph']) {
         if (item['@type'] === 'Event' || item.type === 'Event') {
-          const event = this.parseJsonLdEvent(item);
+          const event = await this.parseJsonLdEvent(item);
           if (event) events.push(event);
         }
       }
