@@ -440,7 +440,7 @@ export class AlpsabzugScraper {
       if (!title) return null;
       
       // Extract description
-      const description = await this.getTextContent(element, source.selectors.description.split(', '));
+      const description = await this.getTextContent(element, source.selectors.description.split(', ')) || undefined;
       
       // Extract date
       const dateText = await this.getDateContent(element, source.selectors.date.split(', '));
