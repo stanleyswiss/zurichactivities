@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { sources, force } = body;
     
-    const requestedSources = sources || ['ST', 'LIMMATTAL'];
+    const requestedSources = sources || process.env.SOURCES_ENABLED?.split(',').map(s => s.trim().toUpperCase()) || ['ST', 'LIMMATTAL'];
     
     // Use the scheduler to run scrapers
     const results = await eventScheduler.runAllScrapers(requestedSources, force);
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     const forceParam = searchParams.get('force');
     const force = forceParam === '1' || forceParam === 'true';
 
-    const requestedSources = sources.length > 0 ? sources : ['ST', 'LIMMATTAL'];
+    const requestedSources = sources.length > 0 ? sources : process.env.SOURCES_ENABLED?.split(',').map(s => s.trim().toUpperCase()) || ['ST', 'LIMMATTAL'];
 
     const results = await eventScheduler.runAllScrapers(requestedSources, force);
 
