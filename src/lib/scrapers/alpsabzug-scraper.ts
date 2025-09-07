@@ -450,10 +450,10 @@ export class AlpsabzugScraper {
       if (!startTime) return null;
       
       // Extract location
-      const locationText = await this.getTextContent(element, source.selectors.location.split(', '));
+      const locationText = await this.getTextContent(element, source.selectors.location.split(', ')) || undefined;
       
       // Extract URL
-      let eventUrl = await this.getAttribute(element, [source.selectors.link], 'href');
+      let eventUrl = await this.getAttribute(element, [source.selectors.link], 'href') || undefined;
       if (eventUrl && !eventUrl.startsWith('http')) {
         const baseUrl = new URL(source.url).origin;
         eventUrl = new URL(eventUrl, baseUrl).toString();
