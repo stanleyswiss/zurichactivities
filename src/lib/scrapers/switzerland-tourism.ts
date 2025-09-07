@@ -93,9 +93,54 @@ export class SwitzerlandTourismScraper {
 
   async scrapeEvents(): Promise<RawEvent[]> {
     try {
-      // Temporarily return empty array until API endpoints are properly researched
-      console.log('Switzerland Tourism scraper temporarily disabled - API endpoints need verification');
-      return [];
+      // Use the attractions endpoint as specified
+      await this.rateLimiter.waitForNextRequest();
+      
+      const url = new URL(`${this.baseUrl}/attractions`);
+      const bbox = process.env.ST_BBOX || '7.0,46.0,10.5,48.5';
+      url.searchParams.append('bbox', bbox);
+      url.searchParams.append('lang', process.env.ST_LANG || 'de');
+      url.searchParams.append('limit', process.env.ST_LIMIT || '100');
+
+      console.log('Fetching from:', url.toString());
+
+      const response = await fetch(url.toString(), {
+        headers: {
+          'x-api-key': this.apiKey || 'TaX5CpphzS32bCUNPAfog465D6RtYgO1191X2CZ2',
+          'Accept': 'application/json',
+          'User-Agent': 'SwissActivitiesDashboard/1.0'
+        }
+      });
+
+      if (!response.ok) {
+        console.error(`ST API error: ${response.status} ${response.statusText}`);
+        return [];
+      }
+
+      const data = await response.json();
+      console.log('ST API response keys:', Object.keys(data || {}));
+      
+      let items: any[] = [];
+      if (Array.isArray(data)) {
+        items = data;
+      } else if (data && data.data) {
+        items = data.data;
+      }
+      
+      console.log(`ST API: ${items.length} attractions found`);
+      
+      const rawEvents: RawEvent[] = [];
+      for (const item of items) {
+        try {
+          const event = await this.transformAttraction(item);
+          if (event) rawEvents.push(event);
+        } catch (e) {
+          console.error('Error transforming ST item:', item?.identifier, e);
+        }
+      }
+      
+      console.log(`ST API: ${rawEvents.length} events mapped`);
+      return rawEvents;
     } catch (error) {
       console.error('Switzerland Tourism scraper error:', error);
       return [];
