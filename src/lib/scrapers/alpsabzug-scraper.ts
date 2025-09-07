@@ -3,7 +3,7 @@ import { RawEvent, SOURCES, CATEGORIES } from '@/types/event';
 import { geocodeAddress } from '@/lib/utils/geocoding';
 
 export class AlpsabzugScraper {
-  private baseUrl = 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/?rubrik=alpabzuegeaelplerfeste';
+  private baseUrl = 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/';
 
   async scrapeEvents(): Promise<RawEvent[]> {
     try {
@@ -11,10 +11,13 @@ export class AlpsabzugScraper {
       
       const response = await fetch(this.baseUrl, {
         headers: {
-          'User-Agent': 'SwissActivitiesDashboard/1.0 (compatible; educational use)',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'de-CH,de;q=0.8,en;q=0.6',
-          'Accept-Encoding': 'gzip, deflate, br'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Upgrade-Insecure-Requests': '1'
         }
       });
 
@@ -44,10 +47,18 @@ export class AlpsabzugScraper {
       eventTeasers.each((_, element) => {
         try {
           const $element = $(element);
-          const event = this.parseEventFromElement($element);
-          if (event) {
-            events.push(event);
-            console.log(`Parsed event: ${event.title} on ${event.startTime.toDateString()}`);
+          const text = $element.text();
+          const title = $element.find('.EventTeaser--title').text().trim() || 
+                        text.split('\n').find(line => line.trim() && !this.hasDatePattern(line))?.trim() || 
+                        '';
+          
+          // Only parse if it's an Alpsabzug-related event
+          if (this.isAlpsabzugEvent(title, text)) {
+            const event = this.parseEventFromElement($element);
+            if (event) {
+              events.push(event);
+              console.log(`Parsed Alpsabzug event: ${event.title} on ${event.startTime.toDateString()}`);
+            }
           }
         } catch (error) {
           console.error('Error parsing event teaser:', error);
