@@ -1,7 +1,6 @@
 import cron from 'node-cron';
 import { SwitzerlandTourismScraper } from './scrapers/switzerland-tourism';
 import { LimmattalScraper } from './scrapers/limmattal';
-import { AlpsabzugScraper } from './scrapers/alpsabzug-scraper';
 import { db } from './db';
 import { generateUniquenessHash, normalizeTitle } from './utils/deduplication';
 import { RawEvent } from '@/types/event';
@@ -123,8 +122,13 @@ export class EventScheduler {
         const limmattalScraper = new LimmattalScraper();
         return await limmattalScraper.scrapeEvents();
       case 'ALPSABZUG':
-        const alpsabzugScraper = new AlpsabzugScraper();
-        return await alpsabzugScraper.scrapeEvents();
+        // Use ST scraper but filter for Alpsabzug events only
+        const alpsabzugFromST = new SwitzerlandTourismScraper();
+        const allSTEvents = await alpsabzugFromST.scrapeEvents();
+        return allSTEvents.filter(event => 
+          event.category === 'alpsabzug' || 
+          this.isAlpsabzugEvent(event.title, event.description || '')
+        );
       // Only real data sources are enabled
       default:
         throw new Error(`Unknown source: ${source}`);
@@ -179,6 +183,21 @@ export class EventScheduler {
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private isAlpsabzugEvent(title: string, description: string): boolean {
+    const combinedText = `${title} ${description}`.toLowerCase();
+    
+    // Primary Alpsabzug keywords
+    const alpsabzugTerms = [
+      'alpabzug', 'alpsabzug', 'alpabfahrt', 'alpsabfahrt',
+      'viehscheid', 'viehschied', 'désalpe', 'desalpe',
+      'alpfest', 'älplerfest', 'sennen', 'sennerei',
+      'alpaufzug', 'alpauftrieb', 'tierumfahrt',
+      'alpweide', 'almabtrieb', 'cattle descent'
+    ];
+
+    return alpsabzugTerms.some(term => combinedText.includes(term));
   }
 
   // Basic content filtering: exclude political/administrative items; optionally allowlist categories

@@ -15,13 +15,11 @@
   },
   "dependencies": {
     "@prisma/client": "^5.0.0",
-    "@sparticuz/chromium": "^138.0.2",
     "autoprefixer": "^10.4.21",
     "cheerio": "^1.0.0-rc.12",
     "crypto": "^1.0.1",
     "next": "^14.2.0",
     "node-cron": "^3.0.3",
-    "playwright-core": "^1.55.0",
     "prisma": "^5.0.0",
     "react": "^18",
     "react-dom": "^18"
