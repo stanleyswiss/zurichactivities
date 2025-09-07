@@ -25,6 +25,10 @@ export class AlpsabzugScraper {
       const html = await response.text();
       const $ = cheerio.load(html);
       const events: RawEvent[] = [];
+      
+      console.log('HTML length:', html.length);
+      console.log('Page title:', $('title').text());
+      console.log('Body text sample:', $('body').text().substring(0, 200));
 
       // Parse all text content and look for Alpsabzug patterns
       // Since we're on the filtered page, all events should be Alpsabzug-related
@@ -32,8 +36,11 @@ export class AlpsabzugScraper {
       
       // Try multiple parsing strategies
       
-      // Strategy 1: Look for list items or article elements
-      $('li, article, .card, .teaser, [class*="item"], [class*="event"]').each((_, element) => {
+      // Strategy 1: Look for the actual CSS classes used by myswitzerland.com
+      const gridItems = $('.GridTeaser--grid--item, [class*="GridTeaser"], [class*="grid"], .teaser, .card, li, article, [class*="item"], [class*="event"]');
+      console.log('Found grid items:', gridItems.length);
+      
+      gridItems.each((_, element) => {
         try {
           const $element = $(element);
           const text = $element.text().trim();
@@ -145,7 +152,8 @@ export class AlpsabzugScraper {
   }
 
   private hasDatePattern(text: string): boolean {
-    return /\d{1,2}\.\s*(September|Oktober|Sept|Okt|\d{1,2}\.\d{2,4})/i.test(text);
+    // Match patterns like "9 Sep", "13 Sep", "9. September", etc.
+    return /\d{1,2}\s*(Sep|Sept|September|Okt|Oktober)|\d{1,2}\.\s*(September|Oktober|\d{1,2}\.\d{2,4})/i.test(text);
   }
 
   private hasLocationPattern(text: string): boolean {
@@ -200,6 +208,8 @@ export class AlpsabzugScraper {
 
     // German date patterns for Swiss events
     const patterns = [
+      // "9 Sep" or "13 Sep" format
+      /(\d{1,2})\s*(Sep|Sept|September|Okt|Oktober)/i,
       // DD.MM.YYYY or DD.MM.YY
       /(\d{1,2})\.(\d{1,2})\.(\d{2,4})/,
       // DD. Month YYYY
@@ -210,13 +220,22 @@ export class AlpsabzugScraper {
 
     const germanMonths = {
       'januar': 0, 'februar': 1, 'märz': 2, 'april': 3, 'mai': 4, 'juni': 5,
-      'juli': 6, 'august': 7, 'september': 8, 'oktober': 9, 'november': 10, 'dezember': 11
+      'juli': 6, 'august': 7, 'september': 8, 'oktober': 9, 'november': 10, 'dezember': 11,
+      'sep': 8, 'sept': 8, 'okt': 9
     };
 
     for (const pattern of patterns) {
       const match = dateText.match(pattern);
       if (match) {
-        if (pattern.toString().includes('Januar')) {
+        if (pattern.toString().includes('Sep|Sept|September|Okt|Oktober')) {
+          // "9 Sep" format - first pattern
+          const day = parseInt(match[1]);
+          const monthName = match[2].toLowerCase();
+          const month = germanMonths[monthName as keyof typeof germanMonths];
+          if (month !== undefined) {
+            return new Date(2025, month, day); // Assume 2025 for current events
+          }
+        } else if (pattern.toString().includes('Januar')) {
           // Month name pattern
           const monthName = match[1].toLowerCase();
           const day = parseInt(match[2]);
