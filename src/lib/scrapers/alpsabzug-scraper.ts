@@ -37,22 +37,20 @@ export class AlpsabzugScraper {
       // Try multiple parsing strategies
       
       // Strategy 1: Look for the actual CSS classes used by myswitzerland.com
-      const gridItems = $('.GridTeaser--grid--item, [class*="GridTeaser"], [class*="grid"], .teaser, .card, li, article, [class*="item"], [class*="event"]');
-      console.log('Found grid items:', gridItems.length);
+      // The correct selector is 'a.EventTeaser.grid' within 'li.FilterGridView--item'
+      const eventTeasers = $('li.FilterGridView--item a.EventTeaser.grid, a.EventTeaser.grid');
+      console.log('Found EventTeaser grid items:', eventTeasers.length);
       
-      gridItems.each((_, element) => {
+      eventTeasers.each((_, element) => {
         try {
           const $element = $(element);
-          const text = $element.text().trim();
-          
-          if (text.length < 20) return; // Skip short elements
-          
-          const event = this.parseEventFromText(text, $element);
+          const event = this.parseEventFromElement($element);
           if (event) {
             events.push(event);
+            console.log(`Parsed event: ${event.title} on ${event.startTime.toDateString()}`);
           }
         } catch (error) {
-          console.error('Error parsing list item:', error);
+          console.error('Error parsing event teaser:', error);
         }
       });
       
@@ -107,6 +105,119 @@ export class AlpsabzugScraper {
       console.error('Alpsabzug scraper error:', error);
       return [];
     }
+  }
+
+  private parseEventFromElement($element: cheerio.Cheerio<any>): RawEvent | null {
+    try {
+      // Extract title from the anchor or look for EventTeaser--title
+      const title = $element.find('.EventTeaser--title').text().trim() || 
+                    $element.text().split('\n').find(line => line.trim() && !this.hasDatePattern(line))?.trim() || 
+                    $element.attr('href')?.split('/').pop()?.replace(/-/g, ' ') || '';
+      
+      if (!title || title.length < 3) {
+        console.log('No valid title found for element');
+        return null;
+      }
+
+      // Extract date from EventTeaser--date structure
+      const dayElement = $element.find('.EventTeaser--date--day');
+      const monthElement = $element.find('.EventTeaser--date--month');
+      
+      let startTime: Date | null = null;
+      
+      if (dayElement.length && monthElement.length) {
+        const day = parseInt(dayElement.text().trim());
+        const monthText = monthElement.text().trim().toLowerCase();
+        startTime = this.parseEventDate(day, monthText);
+      }
+      
+      if (!startTime) {
+        // Fallback: try to parse date from full text
+        const fullText = $element.text();
+        startTime = this.parseDate(fullText);
+      }
+      
+      if (!startTime) {
+        console.log(`No valid date found for event: ${title}`);
+        return null;
+      }
+
+      // Extract location - look in title, URL, or text content
+      const fullText = $element.text();
+      const relativeUrl = $element.attr('href') || '';
+      
+      let location = this.extractLocationFromText(fullText) || 
+                     this.extractLocationFromText(title) || 
+                     this.extractLocationFromUrl(relativeUrl);
+      
+      if (!location) {
+        // Try to extract from the URL path as a fallback
+        const urlParts = relativeUrl.split('/');
+        const lastPart = urlParts[urlParts.length - 1] || '';
+        if (lastPart.includes('-')) {
+          // Look for location names in URL like "alpabzug-wassen-2025"
+          const parts = lastPart.split('-');
+          for (const part of parts) {
+            const capitalizedPart = part.charAt(0).toUpperCase() + part.slice(1);
+            if (this.isSwissLocation(capitalizedPart)) {
+              location = capitalizedPart;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (!location) {
+        // Use a default for location if we can't extract it
+        location = 'Swiss Alps';
+        console.log(`Using default location for event: ${title}`);
+      }
+
+      // Get URL
+      const url = relativeUrl ? (relativeUrl.startsWith('http') ? relativeUrl : `https://www.myswitzerland.com${relativeUrl}`) : undefined;
+
+      console.log(`Extracted event data: ${title}, ${startTime.toDateString()}, ${location}`);
+
+      return {
+        source: SOURCES.ALPSABZUG,
+        sourceEventId: `alpsabzug-${this.generateId(title, startTime)}`,
+        title,
+        description: `Traditional Alpine cattle descent event in ${location}`,
+        lang: 'de',
+        category: CATEGORIES.ALPSABZUG,
+        startTime,
+        city: location,
+        country: 'CH',
+        url
+      };
+    } catch (error) {
+      console.error('Error parsing event element:', error);
+      return null;
+    }
+  }
+
+  private parseEventDate(day: number, monthText: string): Date | null {
+    const germanMonths = {
+      'jan': 0, 'januar': 0,
+      'feb': 1, 'februar': 1,
+      'mär': 2, 'märz': 2, 'mar': 2,
+      'apr': 3, 'april': 3,
+      'mai': 4, 'may': 4,
+      'jun': 5, 'juni': 5,
+      'jul': 6, 'juli': 6,
+      'aug': 7, 'august': 7,
+      'sep': 8, 'sept': 8, 'september': 8,
+      'okt': 9, 'oktober': 9, 'oct': 9,
+      'nov': 10, 'november': 10,
+      'dez': 11, 'dezember': 11, 'dec': 11
+    };
+
+    const month = germanMonths[monthText as keyof typeof germanMonths];
+    if (month !== undefined && day >= 1 && day <= 31) {
+      return new Date(2025, month, day); // Assume 2025 for current events
+    }
+
+    return null;
   }
 
   private parseEventFromText(text: string, $element?: cheerio.Cheerio<any>): RawEvent | null {
@@ -264,7 +375,9 @@ export class AlpsabzugScraper {
       'Grindelwald', 'Zermatt', 'Appenzell', 'Engelberg', 'Davos', 'St. Moritz',
       'Saas-Fee', 'Verbier', 'Crans-Montana', 'Lenzerheide', 'Flims', 'Andermatt',
       'Gstaad', 'Wengen', 'Mürren', 'Klosters', 'Arosa', 'Pontresina',
-      'Schwyz', 'Glarus', 'Nidwalden', 'Obwalden', 'Uri', 'Wallis', 'Graubünden'
+      'Schwyz', 'Glarus', 'Nidwalden', 'Obwalden', 'Uri', 'Wallis', 'Graubünden',
+      // Additional locations from the URLs we saw
+      'Wassen', 'Brigels', 'Pletschenalp', 'Stephan'
     ];
 
     for (const location of locations) {
@@ -274,6 +387,41 @@ export class AlpsabzugScraper {
     }
 
     return '';
+  }
+
+  private extractLocationFromUrl(url: string): string {
+    // Extract location from URL patterns like "/alpabzug-wassen-2025/"
+    const locations = [
+      'Grindelwald', 'Zermatt', 'Appenzell', 'Engelberg', 'Davos', 'St. Moritz',
+      'Saas-Fee', 'Verbier', 'Crans-Montana', 'Lenzerheide', 'Flims', 'Andermatt',
+      'Gstaad', 'Wengen', 'Mürren', 'Klosters', 'Arosa', 'Pontresina',
+      'Schwyz', 'Glarus', 'Nidwalden', 'Obwalden', 'Uri', 'Wallis', 'Graubünden',
+      'Wassen', 'Brigels', 'Pletschenalp', 'Stephan'
+    ];
+
+    const urlLower = url.toLowerCase();
+    for (const location of locations) {
+      if (urlLower.includes(location.toLowerCase())) {
+        return location;
+      }
+    }
+
+    return '';
+  }
+
+  private isSwissLocation(location: string): boolean {
+    const swissLocations = [
+      'Grindelwald', 'Zermatt', 'Appenzell', 'Engelberg', 'Davos', 'Moritz',
+      'Saas', 'Verbier', 'Crans', 'Lenzerheide', 'Flims', 'Andermatt',
+      'Gstaad', 'Wengen', 'Mürren', 'Klosters', 'Arosa', 'Pontresina',
+      'Schwyz', 'Glarus', 'Nidwalden', 'Obwalden', 'Uri', 'Wallis', 'Graubünden',
+      'Wassen', 'Brigels', 'Pletschenalp', 'Stephan'
+    ];
+
+    return swissLocations.some(loc => 
+      location.toLowerCase().includes(loc.toLowerCase()) || 
+      loc.toLowerCase().includes(location.toLowerCase())
+    );
   }
 
   private extractCityFromLocation(locationText: string): string | undefined {
