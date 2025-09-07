@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { SwitzerlandTourismScraper } from './scrapers/switzerland-tourism';
 import { LimmattalScraper } from './scrapers/limmattal';
+import { AlpsabzugScraper } from './scrapers/alpsabzug-scraper';
 import { db } from './db';
 import { generateUniquenessHash, normalizeTitle } from './utils/deduplication';
 import { RawEvent } from '@/types/event';
@@ -47,7 +48,7 @@ export class EventScheduler {
     let sourcesToRun = sources;
     if (!sourcesToRun || sourcesToRun.length === 0) {
       const envList = process.env.SOURCES_ENABLED?.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-      sourcesToRun = (envList && envList.length > 0) ? envList : ['LIMMATTAL'];
+      sourcesToRun = (envList && envList.length > 0) ? envList : ['LIMMATTAL', 'ALPSABZUG'];
     }
 
     console.log(`Starting scrape for sources: ${sourcesToRun.join(', ')}`);
@@ -121,6 +122,9 @@ export class EventScheduler {
       case 'LIMMATTAL':
         const limmattalScraper = new LimmattalScraper();
         return await limmattalScraper.scrapeEvents();
+      case 'ALPSABZUG':
+        const alpsabzugScraper = new AlpsabzugScraper();
+        return await alpsabzugScraper.scrapeEvents();
       // Only real data sources are enabled
       default:
         throw new Error(`Unknown source: ${source}`);

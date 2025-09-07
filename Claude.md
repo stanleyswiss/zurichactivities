@@ -117,7 +117,7 @@ SCRAPE_TOKEN="<admin_token_optional>"     # required for /api/migrate; used by /
 NOMINATIM_EMAIL="you@example.com"         # optional, appended to UA for geocoding
 GEOCODE_CACHE_TTL_DAYS="365"             # optional cache TTL in days
 SCRAPE_PUBLIC="false"                    # if "true", allow UI to trigger /api/scrape without token (testing only)
-SOURCES_ENABLED="LIMMATTAL"             # default sources when none provided (e.g., LIMMATTAL or ST,LIMMATTAL)
+SOURCES_ENABLED="LIMMATTAL,ALPSABZUG"   # default sources when none provided (e.g., LIMMATTAL,ALPSABZUG or ST,LIMMATTAL,ALPSABZUG)
 ST_EVENTS_URL="https://opendata.myswitzerland.io/v1/attractions"  # Events are nested in attractions (x-api-key)
 ST_SEARCH_URL="https://api.discover.swiss/info/v2/search"  # If using POST search API (Ocp-Apim-Subscription-Key)
 ST_SUBSCRIPTION_KEY="<subscription_key_if_needed>"        # Key for ST_SEARCH_URL
@@ -140,10 +140,15 @@ ST_LIMIT="100"                            # Optional
 - **Method**: HTML scraping with Cheerio
 - **Focus**: Local Schlieren/Dietikon/Oetwil events
 
-### 3. Zurich Tourism (`lib/scrapers/zurich-tourism.ts`)
+### 3. Alpsabzug Events (`lib/scrapers/alpsabzug-scraper.ts`)
+- **URL**: `https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/`
+- **Method**: HTML scraping with post-filtering for Alpsabzug events
+- **Focus**: Traditional Alpine cattle descent events (Alpabzug, Désalpe, Viehscheid)
+
+### 4. Zurich Tourism (`lib/scrapers/zurich-tourism.ts`)
 Not currently invoked (previously sample-based). Will be enabled once a real scraper is implemented.
 
-### 4. Municipal Scraper (`lib/scrapers/municipal-scraper.ts`)
+### 5. Municipal Scraper (`lib/scrapers/municipal-scraper.ts`)
 Not currently invoked (previously sample-based). Will be enabled once real sources are integrated.
 
 ## Key Functions
