@@ -104,7 +104,14 @@ export class SwitzerlandTourismScraper {
       return [];
     }
 
-    const data = await response.json();
+    let data;
+    try {
+      const responseText = await response.text();
+      data = JSON.parse(responseText);
+    } catch (jsonError) {
+      console.error('ST API JSON parse error:', jsonError);
+      return [];
+    }
     // Attempt to normalize common shapes: array | {events} | {data} | {value} | {items} | {results}
     let items: any[] = [];
     if (Array.isArray(data)) {
@@ -168,7 +175,14 @@ export class SwitzerlandTourismScraper {
       throw new Error(`ST Search API error: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    let data;
+    try {
+      const responseText = await response.text();
+      data = JSON.parse(responseText);
+    } catch (jsonError) {
+      console.error('Discover Swiss API JSON parse error:', jsonError);
+      return [];
+    }
     console.log('Discover Swiss API response keys:', Object.keys(data || {}));
     
     // Handle different API response formats

@@ -99,6 +99,21 @@ export class EventScheduler {
   }
 
   private async scrapeSource(source: string): Promise<RawEvent[]> {
+    // Add timeout protection for individual scrapers
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`${source} scraper timed out after 20 seconds`)), 20000);
+    });
+
+    try {
+      const scraperPromise = this.executeScraper(source);
+      return await Promise.race([scraperPromise, timeoutPromise]);
+    } catch (error) {
+      console.error(`${source} scraper error:`, error);
+      throw error;
+    }
+  }
+
+  private async executeScraper(source: string): Promise<RawEvent[]> {
     switch (source) {
       case 'ST':
         const stScraper = new SwitzerlandTourismScraper();
