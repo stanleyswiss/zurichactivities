@@ -285,7 +285,7 @@ export class SwitzerlandTourismScraper {
       description,
       lang: process.env.ST_LANG || 'de',
       category,
-      startTime: now, // treat as currently available activity
+      startTime: new Date(), // treat as currently available activity
       endTime: undefined,
       venueName: undefined,
       street: undefined,
