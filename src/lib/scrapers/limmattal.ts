@@ -68,23 +68,52 @@ export class LimmattalScraper {
         }
       }
 
-      // Fallback: look for date patterns and event titles
+      // Parse event cards from the main listing page
       if (events.length === 0) {
-        const $f = cheerio.load(html);
-        $f('*').each((_, element) => {
-          const text = $f(element).text().trim();
-          const hasDate = /\d{1,2}\.\d{1,2}\.\d{4}|\d{1,2}\s+(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)/i.test(text);
-          const hasTime = /\d{1,2}[:\.]\d{2}/.test(text);
-          
-          if (hasDate && text.length > 20 && text.length < 200) {
-            try {
-              const event = this.parseTextEvent(text);
-              if (event) {
-                events.push(event);
-              }
-            } catch (error) {
-              console.error('Error parsing text event:', error);
-            }
+        const $ = cheerio.load(html);
+        
+        // Look for event links and cards
+        $('a[href*="veranstaltungen"], a[href*="event"]').each((_, element) => {
+          try {
+            const $element = $(element);
+            const href = $element.attr('href');
+            if (!href) return;
+            
+            // Extract event data from the card
+            const title = $element.find('h3').text().trim() || $element.text().split('\n')[0]?.trim();
+            if (!title || title.length < 5) return;
+            
+            const fullText = $element.text();
+            
+            // Extract date using German format
+            const dateMatch = fullText.match(/(\d{1,2})\.\s*(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\s*(\d{4})/i);
+            if (!dateMatch) return;
+            
+            const startTime = this.parseGermanDate(dateMatch[1], dateMatch[2], dateMatch[3]);
+            if (!startTime) return;
+            
+            // Extract location from text
+            const locationMatch = fullText.match(/(Schlieren|Dietikon|Oetwil|Urdorf|Oberengstringen|Weiningen|Limmattal)/i);
+            const city = locationMatch ? locationMatch[1] : 'Schlieren'; // Default to Schlieren
+            
+            const url = href.startsWith('http') ? href : `https://www.limmatstadt.ch${href}`;
+            
+            const event: RawEvent = {
+              source: SOURCES.LIMMATTAL,
+              sourceEventId: this.generateEventId(title, startTime),
+              title: title.trim(),
+              description: fullText.length > title.length ? fullText.substring(title.length).trim() : undefined,
+              lang: 'de',
+              category: this.inferCategory(title, fullText),
+              startTime,
+              city,
+              country: 'CH',
+              url
+            };
+            
+            events.push(event);
+          } catch (error) {
+            console.error('Error parsing Limmattal event card:', error);
           }
         });
       }
@@ -253,6 +282,19 @@ export class LimmattalScraper {
     }
     
     return undefined;
+  }
+
+  private parseGermanDate(day: string, month: string, year: string): Date | null {
+    const germanMonths = {
+      'januar': 0, 'februar': 1, 'märz': 2, 'april': 3, 'mai': 4, 'juni': 5,
+      'juli': 6, 'august': 7, 'september': 8, 'oktober': 9, 'november': 10, 'dezember': 11
+    };
+    
+    const monthIndex = germanMonths[month.toLowerCase() as keyof typeof germanMonths];
+    if (monthIndex === undefined) return null;
+    
+    const date = new Date(parseInt(year), monthIndex, parseInt(day));
+    return isNaN(date.getTime()) ? null : date;
   }
 
   private generateEventId(title: string, startTime: Date): string {

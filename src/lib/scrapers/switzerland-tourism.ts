@@ -57,7 +57,7 @@ export class SwitzerlandTourismScraper {
 
   constructor() {
     this.apiKey = process.env.ST_API_KEY || '';
-    this.baseUrl = process.env.ST_EVENTS_URL || undefined;
+    this.baseUrl = process.env.ST_EVENTS_URL || 'https://opendata.myswitzerland.io/v1/events';
     this.searchUrl = process.env.ST_SEARCH_URL || undefined; // e.g., https://api.discover.swiss/info/v2/search
     this.subscriptionKey = process.env.ST_SUBSCRIPTION_KEY || undefined;
     if (!this.baseUrl && !this.searchUrl) {
