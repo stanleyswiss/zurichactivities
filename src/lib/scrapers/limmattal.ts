@@ -25,50 +25,7 @@ export class LimmattalScraper {
       let events: RawEvent[] = await jsonLdToRawEvents(ld, SOURCES.LIMMATTAL, 'de');
       console.log('Limmattal listing JSON-LD count:', ld.length, 'events from JSON-LD:', events.length);
 
-      // If listing page lacks events, visit detail pages and extract JSON-LD from each
-      if (events.length === 0) {
-        const $ = cheerio.load(html);
-        const detailLinks = new Set<string>();
-        $('a[href]').each((_, el) => {
-          const href = $(el).attr('href');
-          if (!href) return;
-          if (/veranstaltungen|event|events/i.test(href)) {
-            const abs = href.startsWith('http') ? href : `https://www.limmatstadt.ch${href}`;
-            detailLinks.add(abs.split('#')[0]);
-          }
-        });
-
-        console.log('Limmattal detail links found:', detailLinks.size);
-        const cap = Math.min(detailLinks.size, 30);
-        const links = Array.from(detailLinks).slice(0, cap);
-        for (const link of links) {
-          try {
-            await this.delay(600); // be gentle
-            const r = await fetch(link, { headers: { 'User-Agent': 'SwissActivitiesDashboard/1.0' } });
-            if (!r.ok) continue;
-            const page = await r.text();
-            const ld2 = extractJsonLd(page);
-            const ev = await jsonLdToRawEvents(ld2, SOURCES.LIMMATTAL, 'de');
-            // If JSON-LD not present, fallback to legacy parse
-            if (ev.length > 0) {
-              // Attach canonical URL when missing
-              ev.forEach(e => { if (!e.url) e.url = link; });
-              events.push(...ev);
-            } else {
-              const $d = cheerio.load(page);
-              const parsed = await this.parseEvent($d, $d('body'));
-              if (parsed) {
-                parsed.url = parsed.url || link;
-                events.push(parsed);
-              }
-            }
-          } catch (e) {
-            console.error('Limmattal detail fetch error:', e);
-          }
-        }
-      }
-
-      // Parse event cards from the main listing page
+      // Parse event cards from the main listing page FIRST (faster)
       if (events.length === 0) {
         const $ = cheerio.load(html);
         
@@ -116,7 +73,53 @@ export class LimmattalScraper {
             console.error('Error parsing Limmattal event card:', error);
           }
         });
+        
+        console.log(`Limmattal main page parsing: ${events.length} events found`);
       }
+
+      // Only visit detail pages if main page parsing failed AND we have time budget
+      if (events.length === 0) {
+        const $ = cheerio.load(html);
+        const detailLinks = new Set<string>();
+        $('a[href]').each((_, el) => {
+          const href = $(el).attr('href');
+          if (!href) return;
+          if (/veranstaltungen|event|events/i.test(href)) {
+            const abs = href.startsWith('http') ? href : `https://www.limmatstadt.ch${href}`;
+            detailLinks.add(abs.split('#')[0]);
+          }
+        });
+
+        console.log('Limmattal detail links found:', detailLinks.size);
+        const cap = Math.min(detailLinks.size, 15); // Reduce from 30 to 15 for speed
+        const links = Array.from(detailLinks).slice(0, cap);
+        for (const link of links) {
+          try {
+            await this.delay(300); // Reduce delay from 600ms to 300ms
+            const r = await fetch(link, { headers: { 'User-Agent': 'SwissActivitiesDashboard/1.0' } });
+            if (!r.ok) continue;
+            const page = await r.text();
+            const ld2 = extractJsonLd(page);
+            const ev = await jsonLdToRawEvents(ld2, SOURCES.LIMMATTAL, 'de');
+            // If JSON-LD not present, fallback to legacy parse
+            if (ev.length > 0) {
+              // Attach canonical URL when missing
+              ev.forEach(e => { if (!e.url) e.url = link; });
+              events.push(...ev);
+            } else {
+              const $d = cheerio.load(page);
+              const parsed = await this.parseEvent($d, $d('body'));
+              if (parsed) {
+                parsed.url = parsed.url || link;
+                events.push(parsed);
+              }
+            }
+          } catch (e) {
+            console.error('Limmattal detail fetch error:', e);
+          }
+        }
+      }
+
 
       console.log(`Limmattal: Scraped ${events.length} events`);
       return events;
