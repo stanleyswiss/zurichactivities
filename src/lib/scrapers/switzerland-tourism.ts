@@ -97,7 +97,11 @@ export class SwitzerlandTourismScraper {
     });
 
     if (!response.ok) {
-      throw new Error(`ST API error: ${response.status} ${response.statusText}`);
+      console.error(`ST API error: ${response.status} ${response.statusText}`);
+      console.error('ST API URL:', url.toString());
+      console.error('ST API Key present:', !!this.apiKey);
+      // Return empty array instead of throwing to prevent 504 timeouts
+      return [];
     }
 
     const data = await response.json();
