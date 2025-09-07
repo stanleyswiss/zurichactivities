@@ -57,7 +57,7 @@ export class SwitzerlandTourismScraper {
 
   constructor() {
     this.apiKey = process.env.ST_API_KEY || '';
-    this.baseUrl = process.env.ST_EVENTS_URL || 'https://opendata.myswitzerland.io/v1/events';
+    this.baseUrl = process.env.ST_EVENTS_URL || 'https://opendata.myswitzerland.io/v1/attractions';
     this.searchUrl = process.env.ST_SEARCH_URL || 'https://api.discover.swiss/info/v2/search';
     this.subscriptionKey = process.env.ST_SUBSCRIPTION_KEY || process.env.DISCOVER_SWISS_API_KEY || '';
     if (!this.baseUrl && !this.searchUrl) {
@@ -117,10 +117,15 @@ export class SwitzerlandTourismScraper {
     if (Array.isArray(data)) {
       items = data;
     } else if (data) {
-      items = data.events || data.data || data.value || data.items || data.results || [];
-      // Some payloads nest under data.data
-      if (!Array.isArray(items) && data.data && Array.isArray(data.data.data)) {
-        items = data.data.data;
+      // opendata.myswitzerland.io returns: { meta: {...}, data: [...] }
+      if (Array.isArray(data.data)) {
+        items = data.data;
+      } else {
+        items = data.events || data.value || data.items || data.results || [];
+        // Some payloads nest under data.data
+        if (!Array.isArray(items) && data.data && Array.isArray(data.data.data)) {
+          items = data.data.data;
+        }
       }
     }
     console.log('Switzerland Tourism (GET) payload keys:', Object.keys(data || {}), 'arrayLen:', Array.isArray(items) ? items.length : 0);
