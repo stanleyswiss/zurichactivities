@@ -3,7 +3,7 @@ import { RawEvent, SOURCES, CATEGORIES } from '@/types/event';
 import { geocodeAddress } from '@/lib/utils/geocoding';
 
 export class AlpsabzugScraper {
-  private baseUrl = 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/';
+  private baseUrl = 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/?rubrik=alpabzuegeaelplerfeste';
 
   async scrapeEvents(): Promise<RawEvent[]> {
     try {
@@ -26,59 +26,49 @@ export class AlpsabzugScraper {
       const $ = cheerio.load(html);
       const events: RawEvent[] = [];
 
-      // Look for event containers - need to inspect the actual page structure
-      $('.event-item, .result-item, .search-result, [class*="event"], [class*="result"]').each((_, element) => {
+      // Parse all text content and look for Alpsabzug patterns
+      // Since we're on the filtered page, all events should be Alpsabzug-related
+      const bodyText = $('body').text();
+      
+      // Try multiple parsing strategies
+      
+      // Strategy 1: Look for list items or article elements
+      $('li, article, .card, .teaser, [class*="item"], [class*="event"]').each((_, element) => {
         try {
           const $element = $(element);
+          const text = $element.text().trim();
           
-          // Extract title
-          const title = $element.find('h1, h2, h3, h4, .title, [class*="title"], [class*="heading"]').first().text().trim()
-            || $element.find('a').first().text().trim();
+          if (text.length < 20) return; // Skip short elements
           
-          if (!title || title.length < 3) return;
-
-          // Filter: Only include if this looks like an Alpsabzug event
-          const fullText = $element.text().toLowerCase();
-          const isAlpsabzugEvent = this.isAlpsabzugEvent(title, fullText);
-          if (!isAlpsabzugEvent) return;
-
-          // Extract date information
-          const dateText = $element.find('.date, [class*="date"], .time, [class*="time"], .datum').text().trim()
-            || $element.text();
-          
-          const startTime = this.parseDate(dateText);
-          if (!startTime) return;
-
-          // Extract location
-          const locationText = $element.find('.location, [class*="location"], .place, [class*="place"], .ort').text().trim()
-            || this.extractLocationFromText($element.text());
-          
-          // Extract URL
-          const relativeUrl = $element.find('a').first().attr('href');
-          const url = relativeUrl ? (relativeUrl.startsWith('http') ? relativeUrl : `https://www.myswitzerland.com${relativeUrl}`) : undefined;
-
-          // Extract description
-          const description = $element.find('.description, [class*="description"], .teaser, [class*="teaser"], p').first().text().trim()
-            || $element.text().substring(title.length).trim().substring(0, 200);
-
-          const event: RawEvent = {
-            source: SOURCES.ST, // Use ST source but mark as Alpsabzug
-            sourceEventId: `alpsabzug-${this.generateId(title, startTime)}`,
-            title,
-            description: description.length > 10 ? description : undefined,
-            lang: 'de',
-            category: CATEGORIES.ALPSABZUG,
-            startTime,
-            city: this.extractCityFromLocation(locationText),
-            country: 'CH',
-            url
-          };
-
-          events.push(event);
+          const event = this.parseEventFromText(text, $element);
+          if (event) {
+            events.push(event);
+          }
         } catch (error) {
-          console.error('Error parsing Alpsabzug event:', error);
+          console.error('Error parsing list item:', error);
         }
       });
+      
+      // Strategy 2: Look for date patterns in the full text
+      if (events.length === 0) {
+        const lines = bodyText.split('\n').filter(line => line.trim().length > 20);
+        
+        for (const line of lines) {
+          try {
+            // Look for lines with dates and locations
+            if (this.hasDatePattern(line) && this.hasLocationPattern(line)) {
+              const event = this.parseEventFromText(line.trim());
+              if (event) {
+                events.push(event);
+              }
+            }
+          } catch (error) {
+            console.error('Error parsing text line:', error);
+          }
+        }
+      }
+      
+      console.log(`Alpsabzug parsing strategies found ${events.length} events`);
 
       // Fallback: look for any text patterns that might contain events
       if (events.length === 0) {
@@ -110,6 +100,65 @@ export class AlpsabzugScraper {
       console.error('Alpsabzug scraper error:', error);
       return [];
     }
+  }
+
+  private parseEventFromText(text: string, $element?: cheerio.Cheerio<any>): RawEvent | null {
+    const startTime = this.parseDate(text);
+    if (!startTime) return null;
+
+    // Extract title - first meaningful line or up to first date
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    let title = lines[0];
+    
+    // If title is just a date, try to get a better title
+    if (this.hasDatePattern(title) && lines.length > 1) {
+      title = lines.find(l => !this.hasDatePattern(l) && l.length > 5) || title;
+    }
+    
+    // Clean up title
+    title = title.replace(/^\d+\.\s*/, '').trim(); // Remove leading numbers
+    if (title.length < 3) return null;
+
+    // Extract location
+    const location = this.extractLocationFromText(text);
+    if (!location) return null; // Must have a location
+
+    // Get URL if available
+    let url: string | undefined;
+    if ($element) {
+      const relativeUrl = $element.find('a').first().attr('href');
+      url = relativeUrl ? (relativeUrl.startsWith('http') ? relativeUrl : `https://www.myswitzerland.com${relativeUrl}`) : undefined;
+    }
+
+    return {
+      source: SOURCES.ALPSABZUG,
+      sourceEventId: `alpsabzug-${this.generateId(title, startTime)}`,
+      title,
+      description: `Traditional Alpine cattle descent event in ${location}`,
+      lang: 'de',
+      category: CATEGORIES.ALPSABZUG,
+      startTime,
+      city: location,
+      country: 'CH',
+      url
+    };
+  }
+
+  private hasDatePattern(text: string): boolean {
+    return /\d{1,2}\.\s*(September|Oktober|Sept|Okt|\d{1,2}\.\d{2,4})/i.test(text);
+  }
+
+  private hasLocationPattern(text: string): boolean {
+    // Check for Swiss location names
+    const locations = [
+      'Grindelwald', 'Zermatt', 'Appenzell', 'Engelberg', 'Davos', 'St. Moritz',
+      'Saas-Fee', 'Verbier', 'Crans-Montana', 'Lenzerheide', 'Flims', 'Andermatt',
+      'Gstaad', 'Wengen', 'Mürren', 'Klosters', 'Arosa', 'Pontresina',
+      'Lauterbrunnen', 'St. Stephan', 'Müstair', 'Schwarzsee', 'Gimmelwald',
+      'Schwyz', 'Glarus', 'Nidwalden', 'Obwalden', 'Uri', 'Wallis', 'Graubünden'
+    ];
+    
+    return locations.some(loc => text.toLowerCase().includes(loc.toLowerCase()));
   }
 
   private isAlpsabzugEvent(title: string, fullText: string): boolean {
