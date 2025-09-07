@@ -58,8 +58,8 @@ export class SwitzerlandTourismScraper {
   constructor() {
     this.apiKey = process.env.ST_API_KEY || '';
     this.baseUrl = process.env.ST_EVENTS_URL || 'https://opendata.myswitzerland.io/v1/events';
-    this.searchUrl = process.env.ST_SEARCH_URL || undefined; // e.g., https://api.discover.swiss/info/v2/search
-    this.subscriptionKey = process.env.ST_SUBSCRIPTION_KEY || undefined;
+    this.searchUrl = process.env.ST_SEARCH_URL || 'https://api.discover.swiss/info/v2/search';
+    this.subscriptionKey = process.env.ST_SUBSCRIPTION_KEY || process.env.DISCOVER_SWISS_API_KEY || '';
     if (!this.baseUrl && !this.searchUrl) {
       throw new Error('Configure ST_EVENTS_URL (GET + x-api-key) or ST_SEARCH_URL (POST + Ocp-Apim-Subscription-Key)');
     }
@@ -159,18 +159,36 @@ export class SwitzerlandTourismScraper {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`ST Search API error: ${response.status} ${response.statusText}`, errorText);
       throw new Error(`ST Search API error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
-    const items = Array.isArray(data?.value) ? data.value : [];
+    console.log('Discover Swiss API response keys:', Object.keys(data || {}));
+    
+    // Handle different API response formats
+    let items: any[] = [];
+    if (Array.isArray(data)) {
+      items = data;
+    } else if (data) {
+      // Try common response formats
+      items = data.value || data.events || data.data || data.results || data.items || [];
+      // Handle nested structures
+      if (!Array.isArray(items) && typeof items === 'object') {
+        items = items.events || items.data || items.results || items.items || [];
+      }
+    }
+    
+    console.log(`Discover Swiss API items found: ${Array.isArray(items) ? items.length : 0}`);
+    
     const rawEvents: RawEvent[] = [];
-    for (const node of items) {
+    for (const node of items as any[]) {
       try {
         const raw = await this.transformSearchEvent(node);
         if (raw) rawEvents.push(raw);
       } catch (e) {
-        console.error('Error transforming ST event (POST):', node?.identifier, e);
+        console.error('Error transforming ST event (POST):', node?.identifier || node?.id, e);
       }
     }
     console.log(`Switzerland Tourism (POST search): ${rawEvents.length} events`);
