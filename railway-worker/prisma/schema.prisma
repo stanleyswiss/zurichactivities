@@ -1,0 +1,53 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id               String   @id @default(cuid())
+  source           String   // 'ST', 'ZURICH', 'LIMMATTAL', 'MUNICIPAL'
+  sourceEventId    String?
+  title            String
+  titleNorm        String   // normalized for dedup
+  description      String?
+  lang             String   @default("de")
+  category         String?
+  startTime        DateTime
+  endTime          DateTime?
+  venueName        String?
+  street           String?
+  postalCode       String?
+  city             String?
+  country          String   @default("CH")
+  lat              Float?
+  lon              Float?
+  priceMin         Float?
+  priceMax         Float?
+  currency         String   @default("CHF")
+  url              String?
+  imageUrl         String?
+  uniquenessHash   String   @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([startTime])
+  @@index([lat, lon])
+  @@index([source])
+  @@index([category])
+}
+
+model GeocodeCache {
+  id         String   @id @default(cuid())
+  addressKey String   @unique
+  lat        Float
+  lon        Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

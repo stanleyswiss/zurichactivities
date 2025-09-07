@@ -1,0 +1,51 @@
+const cron = require('node-cron');
+const express = require('express');
+const { runAlpsabzugScraper } = require('./scraper');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+console.log('Railway Alpsabzug Scraper Worker Started');
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', service: 'alpsabzug-scraper' });
+});
+
+// Manual scrape endpoint
+app.post('/scrape', async (req, res) => {
+  try {
+    console.log('Manual scrape triggered via HTTP');
+    const result = await runAlpsabzugScraper();
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Manual scrape failed:', error);
+    res.status(500).json({ error: 'Scrape failed', details: error.message });
+  }
+});
+
+// Start HTTP server
+app.listen(PORT, () => {
+  console.log(`HTTP server listening on port ${PORT}`);
+});
+
+// Run immediately on startup
+console.log('Running initial scrape...');
+runAlpsabzugScraper().catch(console.error);
+
+// Schedule to run every day at 7 AM (1 hour after main scraper)
+const schedule = process.env.CRON_SCHEDULE || '0 7 * * *';
+cron.schedule(schedule, async () => {
+  console.log('Starting scheduled Alpsabzug scrape...');
+  try {
+    await runAlpsabzugScraper();
+  } catch (error) {
+    console.error('Scheduled scrape failed:', error);
+  }
+});
+
+// Keep the process alive
+process.on('SIGTERM', () => {
+  console.log('Received SIGTERM, shutting down gracefully...');
+  process.exit(0);
+});
