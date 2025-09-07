@@ -39,7 +39,8 @@ export const SOURCES = {
   ST: 'ST',
   ZURICH: 'ZURICH', 
   LIMMATTAL: 'LIMMATTAL',
-  MUNICIPAL: 'MUNICIPAL'
+  MUNICIPAL: 'MUNICIPAL',
+  ALPSABZUG: 'ALPSABZUG'
 } as const;
 
 export type Source = typeof SOURCES[keyof typeof SOURCES];
