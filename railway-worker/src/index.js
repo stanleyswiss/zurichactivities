@@ -29,9 +29,11 @@ app.listen(PORT, () => {
   console.log(`HTTP server listening on port ${PORT}`);
 });
 
-// Run immediately on startup
-console.log('Running initial scrape...');
-runAlpsabzugScraper().catch(console.error);
+// Run initial scrape after a delay to ensure DB connection
+setTimeout(() => {
+  console.log('Running initial scrape...');
+  runAlpsabzugScraper().catch(console.error);
+}, 5000);
 
 // Schedule to run every day at 7 AM (1 hour after main scraper)
 const schedule = process.env.CRON_SCHEDULE || '0 7 * * *';

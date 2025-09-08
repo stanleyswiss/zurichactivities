@@ -29,8 +29,8 @@ RUN npx playwright install chromium
 # Copy prisma schema
 COPY prisma ./prisma
 
-# Generate Prisma client
-RUN npx prisma generate
+# Generate Prisma client with proper binary targets
+RUN npx prisma generate --schema=./prisma/schema.prisma
 
 # Copy source code
 COPY src ./src

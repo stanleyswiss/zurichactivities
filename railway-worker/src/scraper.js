@@ -4,8 +4,17 @@ const crypto = require('crypto');
 require('dotenv').config();
 
 const prisma = new PrismaClient({
-  datasourceUrl: process.env.DATABASE_URL
+  datasourceUrl: process.env.DATABASE_URL,
+  log: ['error', 'warn']
 });
+
+// Test database connection
+prisma.$connect()
+  .then(() => console.log('Database connected successfully'))
+  .catch(err => {
+    console.error('Database connection failed:', err);
+    console.error('DATABASE_URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
+  });
 
 // Alpsabzug-specific terms for filtering
 const ALPSABZUG_TERMS = [
