@@ -47,7 +47,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error triggering Alpsabzug scraper:', error);
     return NextResponse.json(
-      { error: 'Failed to trigger Alpsabzug scraper', details: error.message },
+      { 
+        error: 'Failed to trigger Alpsabzug scraper', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      },
       { status: 500 }
     );
   }
