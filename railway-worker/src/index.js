@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const express = require('express');
 const { runAlpsabzugScraper } = require('./scraper');
 const { scrapeSimple } = require('./scraper-simple');
+const { runMySwitzerlandScraper } = require('./myswitzerland-scraper');
 const { runAdvancedAlpsabzugScraper } = require('./scraper-advanced');
 const { runStructuredDataScraper } = require('./structured-data-scraper');
 
@@ -35,13 +36,24 @@ app.post('/scrape', async (req, res) => {
       case 'structured':
         result = await runStructuredDataScraper();
         break;
+      case 'myswitzerland':
+        result = await runMySwitzerlandScraper();
+        break;
       case 'comprehensive':
         // Run multiple scrapers for maximum coverage
         console.log('Running comprehensive scraping with all methods...');
         const results = {};
         
         try {
-          console.log('1. Running structured data scraper...');
+          console.log('1. Running MySwitzerland scraper (priority)...');
+          results.myswitzerland = await runMySwitzerlandScraper();
+        } catch (e) {
+          console.error('MySwitzerland scraper failed:', e.message);
+          results.myswitzerland = { error: e.message };
+        }
+
+        try {
+          console.log('2. Running structured data scraper...');
           results.structured = await runStructuredDataScraper();
         } catch (e) {
           console.error('Structured data scraper failed:', e.message);
@@ -97,12 +109,15 @@ app.listen(PORT, () => {
 
 // Run initial scrape after a delay to ensure DB connection
 setTimeout(() => {
-  console.log('Running initial scrape with advanced scraper...');
-  runAdvancedAlpsabzugScraper().catch(error => {
-    console.error('Advanced scraper failed, falling back to structured data scraper:', error);
-    runStructuredDataScraper().catch(error => {
-      console.error('Structured data scraper failed, falling back to simple:', error);
-      scrapeSimple().catch(console.error);
+  console.log('Running initial scrape with MySwitzerland scraper...');
+  runMySwitzerlandScraper().catch(error => {
+    console.error('MySwitzerland scraper failed, falling back to advanced scraper:', error);
+    runAdvancedAlpsabzugScraper().catch(error => {
+      console.error('Advanced scraper failed, falling back to structured data scraper:', error);
+      runStructuredDataScraper().catch(error => {
+        console.error('Structured data scraper failed, falling back to simple:', error);
+        scrapeSimple().catch(console.error);
+      });
     });
   });
 }, 5000);
