@@ -45,7 +45,7 @@ const ADVANCED_SOURCES = [
     params: {
       bbox: '6.0,45.5,11.0,48.0', // Expanded Swiss Alps region
       lang: 'de',
-      limit: '200'
+      limit: '500'
     },
     headers: {
       'x-api-key': process.env.ST_API_KEY || 'TaX5CpphzS32bCUNPAfog465D6RtYgO1191X2CZ2'

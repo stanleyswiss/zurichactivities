@@ -37,9 +37,25 @@ class MySwitzerlandEventScraper {
       await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForTimeout(3000);
 
-      // Find event links
+      // Check for "Load More" or pagination buttons and click them
+      try {
+        // Try to load all results by clicking "Show More" or similar buttons
+        let loadMoreButton = await page.$('.load-more, [data-load-more], .show-more, .mehr-anzeigen');
+        let clicks = 0;
+        while (loadMoreButton && clicks < 5) { // Max 5 clicks to prevent infinite loops
+          console.log('Found "Load More" button, clicking...');
+          await loadMoreButton.click();
+          await page.waitForTimeout(2000);
+          loadMoreButton = await page.$('.load-more, [data-load-more], .show-more, .mehr-anzeigen');
+          clicks++;
+        }
+      } catch (error) {
+        console.log('No pagination found or error clicking:', error.message);
+      }
+
+      // Find event links (now after loading all content)
       const eventLinks = await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll('a[href*="/veranstaltungen/"]'));
+        const links = Array.from(document.querySelectorAll('a[href*="/veranstaltungen/"], a[href*="/event"]'));
         return links
           .map(link => ({
             href: link.href,
@@ -49,14 +65,16 @@ class MySwitzerlandEventScraper {
             link.title.toLowerCase().includes('alpabzug') ||
             link.title.toLowerCase().includes('alpsabzug') ||
             link.title.toLowerCase().includes('désalpe') ||
-            link.href.includes('alpabzug')
+            link.title.toLowerCase().includes('desalpe') ||
+            link.href.includes('alpabzug') ||
+            link.href.includes('alpsabzug')
           );
       });
 
       console.log(`Found ${eventLinks.length} potential Alpsabzug event links`);
 
       // Visit each event page to extract detailed data
-      for (const eventLink of eventLinks.slice(0, 10)) { // Limit to 10 events
+      for (const eventLink of eventLinks.slice(0, 50)) { // Increased limit to 50 events
         try {
           console.log(`Scraping event: ${eventLink.title}`);
           await page.goto(eventLink.href, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -260,8 +278,11 @@ class MySwitzerlandEventScraper {
     const text = `${title} ${description}`.toLowerCase();
     const alpsabzugTerms = [
       'alpabzug', 'alpsabzug', 'alpabfahrt', 'alpsabfahrt',
-      'viehscheid', 'désalpe', 'desalpe', 'cattle descent',
-      'älplerfest', 'alpfest'
+      'viehscheid', 'viehschied', 'désalpe', 'desalpe', 'cattle descent',
+      'älplerfest', 'alpfest', 'sennen', 'sennerei',
+      'alpaufzug', 'alpauftrieb', 'inalpe', 'monté à l\'alpage',
+      'transhumance', 'almabtrieb', 'decorated cows', 'geschmückte kühe',
+      'vaches décorées', 'bergbauern', 'alpwirtschaft', 'alpweide'
     ];
     
     return alpsabzugTerms.some(term => text.includes(term));

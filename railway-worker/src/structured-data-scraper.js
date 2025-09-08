@@ -301,7 +301,7 @@ class SwissGeocodingService {
       const url = new URL('https://nominatim.openstreetmap.org/search');
       url.searchParams.append('q', searchQuery);
       url.searchParams.append('format', 'json');
-      url.searchParams.append('limit', '3');
+      url.searchParams.append('limit', '10');
       url.searchParams.append('countrycodes', 'ch');
       url.searchParams.append('addressdetails', '1');
       
