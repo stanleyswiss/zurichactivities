@@ -347,6 +347,22 @@ export class SwitzerlandTourismScraper {
     const title: string | undefined = node.name || node.title;
     if (!title) return null;
 
+    // Filter out non-European languages
+    const nonEuropeanPatterns = [
+      /[\u0600-\u06FF]/, // Arabic
+      /[\u0590-\u05FF]/, // Hebrew  
+      /[\u4E00-\u9FFF]/, // Chinese
+      /[\u3040-\u309F\u30A0-\u30FF]/, // Japanese
+      /[\u0400-\u04FF]/, // Cyrillic (Russian)
+      /[\u0E00-\u0E7F]/, // Thai
+      /[\u0D80-\u0DFF]/, // Sinhala
+      /[\u0980-\u09FF]/, // Bengali
+    ];
+    
+    if (nonEuropeanPatterns.some(pattern => pattern.test(title))) {
+      return null;
+    }
+
     const titleLower = title.toLowerCase();
     const description = node.abstract || node.description || '';
     const descLower = description.toLowerCase();
@@ -381,11 +397,12 @@ export class SwitzerlandTourismScraper {
     const lat: number | undefined = node.geo?.latitude;
     const lon: number | undefined = node.geo?.longitude;
 
-    // Category inference - prioritize Alpsabzug
+    // Category inference - prioritize Alpsabzug, then infer from content
     let category: string | undefined;
     if (isAlpsabzug) {
       category = CATEGORIES.ALPSABZUG;
     } else {
+      // First try classification data
       for (const c of classifications) {
         const name = (c?.name || '').toLowerCase();
         const values: any[] = c?.values || [];
@@ -396,6 +413,23 @@ export class SwitzerlandTourismScraper {
           else if (combined.includes('market') || combined.includes('markt')) category = CATEGORIES.MARKET;
           else if (combined.includes('sport') || combined.includes('active')) category = CATEGORIES.SPORTS;
           else if (combined.includes('nature')) category = CATEGORIES.SEASONAL;
+        }
+      }
+      
+      // If no category from classifications, infer from title/description
+      if (!category) {
+        category = this.mapCategory(combinedText);
+        
+        // Additional pattern matching for better categorization
+        if (combinedText.includes('weihnacht') || combinedText.includes('advent') || 
+            combinedText.includes('christmas')) {
+          category = CATEGORIES.SEASONAL;
+        } else if (combinedText.includes('führung') || combinedText.includes('besichtigung') || 
+                   combinedText.includes('tour') || combinedText.includes('museum')) {
+          category = CATEGORIES.CULTURE;
+        } else if (combinedText.includes('wandern') || combinedText.includes('hiking') ||
+                   combinedText.includes('ski') || combinedText.includes('bike')) {
+          category = CATEGORIES.SPORTS;
         }
       }
     }
@@ -412,6 +446,25 @@ export class SwitzerlandTourismScraper {
       }
     }
 
+    // Extract date information if available, otherwise use upcoming dates
+    let startTime = new Date();
+    let endTime: Date | undefined;
+    
+    // Try to extract dates from node data
+    if (node.validFrom && node.validThrough) {
+      startTime = new Date(node.validFrom);
+      endTime = new Date(node.validThrough);
+    } else if (node.startDate) {
+      startTime = new Date(node.startDate);
+      if (node.endDate) {
+        endTime = new Date(node.endDate);
+      }
+    } else {
+      // For attractions without specific dates, set them as available from tomorrow
+      // to avoid showing scraper runtime
+      startTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    }
+
     return {
       source: SOURCES.ST,
       sourceEventId: node.identifier || url,
@@ -419,8 +472,8 @@ export class SwitzerlandTourismScraper {
       description,
       lang: process.env.ST_LANG || 'de',
       category,
-      startTime: new Date(), // treat as currently available activity
-      endTime: undefined,
+      startTime,
+      endTime,
       venueName: title, // Use title as venue for attractions
       street: undefined,
       postalCode: undefined,
@@ -580,6 +633,27 @@ export class SwitzerlandTourismScraper {
     
     const categoryLower = category.toLowerCase();
     
+    // Filter out city names and administrative terms (don't return them as categories)
+    const cityNames = [
+      'zürich', 'zurich', 'bern', 'geneva', 'basel', 'lausanne', 'winterthur', 
+      'lucerne', 'luzern', 'st. gallen', 'biel', 'thun', 'köniz', 'schaffhausen',
+      'fribourg', 'chur', 'neuchâtel', 'vernier', 'uster', 'sion', 'emmen',
+      'yverdon', 'zug', 'kriens', 'rapperswil', 'dietikon', 'schlieren', 
+      'urdorf', 'oberengstringen', 'weiningen', 'baden', 'wohlen', 'bremgarten',
+      'olten', 'solothurn', 'aarau', 'frauenfeld'
+    ];
+    
+    const adminTerms = [
+      'gemeinde', 'municipality', 'canton', 'kanton', 'region', 'bezirk', 
+      'district', 'stadt', 'city', 'dorf', 'village', 'ort', 'place'
+    ];
+    
+    // Don't return city names or administrative terms as categories
+    if (cityNames.some(city => categoryLower === city) || 
+        adminTerms.some(term => categoryLower.includes(term))) {
+      return undefined;
+    }
+    
     if (categoryLower.includes('alp') || categoryLower.includes('vieh')) {
       return CATEGORIES.ALPSABZUG;
     }
@@ -605,6 +679,7 @@ export class SwitzerlandTourismScraper {
       return CATEGORIES.SEASONAL;
     }
     
+    // Only return the original category if it's not a city name or admin term
     return category;
   }
 }
