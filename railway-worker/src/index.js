@@ -7,6 +7,7 @@ const { runAdvancedAlpsabzugScraper } = require('./scraper-advanced');
 const { runStructuredDataScraper } = require('./structured-data-scraper');
 const { runComprehensiveMySwitzerlandScraper } = require('./comprehensive-myswitzerland-scraper');
 const { runMunicipalScraper } = require('./municipal-scraper-architecture');
+const { runFastMySwitzerlandScraper } = require('./fast-myswitzerland-scraper');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -50,6 +51,9 @@ app.post('/scrape', async (req, res) => {
       case 'comprehensive-myswitzerland':
         result = await runComprehensiveMySwitzerlandScraper();
         break;
+      case 'fast-myswitzerland':
+        result = await runFastMySwitzerlandScraper();
+        break;
       case 'municipal':
         result = await runMunicipalScraper();
         break;
@@ -64,10 +68,10 @@ app.post('/scrape', async (req, res) => {
               
               // Run all scrapers in background
               try {
-                console.log('Background: Running Comprehensive MySwitzerland scraper...');
-                asyncResults.comprehensiveMyswitzerland = await runComprehensiveMySwitzerlandScraper();
+                console.log('Background: Running FAST MySwitzerland scraper...');
+                asyncResults.fastMyswitzerland = await runFastMySwitzerlandScraper();
               } catch (e) {
-                console.error('Background Comprehensive MySwitzerland scraper failed:', e.message);
+                console.error('Background FAST MySwitzerland scraper failed:', e.message);
               }
 
               try {
@@ -122,11 +126,11 @@ app.post('/scrape', async (req, res) => {
         const results = {};
         
         try {
-          console.log('1. Running Comprehensive MySwitzerland scraper (priority)...');
-          results.comprehensiveMyswitzerland = await runComprehensiveMySwitzerlandScraper();
+          console.log('1. Running FAST MySwitzerland scraper (priority)...');
+          results.fastMyswitzerland = await runFastMySwitzerlandScraper();
         } catch (e) {
-          console.error('Comprehensive MySwitzerland scraper failed:', e.message);
-          results.comprehensiveMyswitzerland = { error: e.message };
+          console.error('FAST MySwitzerland scraper failed:', e.message);
+          results.fastMyswitzerland = { error: e.message };
         }
 
         try {
@@ -205,9 +209,9 @@ app.listen(PORT, () => {
 
 // Run initial scrape after a delay to ensure DB connection
 setTimeout(() => {
-  console.log('Running initial scrape with Comprehensive MySwitzerland scraper...');
-  runComprehensiveMySwitzerlandScraper().catch(error => {
-    console.error('Comprehensive MySwitzerland scraper failed, falling back to Municipal scraper:', error);
+  console.log('Running initial scrape with FAST MySwitzerland scraper...');
+  runFastMySwitzerlandScraper().catch(error => {
+    console.error('FAST MySwitzerland scraper failed, falling back to Municipal scraper:', error);
     runMunicipalScraper().catch(error => {
       console.error('Municipal scraper failed, falling back to original MySwitzerland scraper:', error);
       runMySwitzerlandScraper().catch(error => {
