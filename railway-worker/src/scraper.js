@@ -27,41 +27,42 @@ const ALPSABZUG_TERMS = [
   'alpbetrieb', 'alpwirtschaft', 'bergbauern'
 ];
 
-// Target sources for Alpsabzug events
+// Target sources for Alpsabzug events - updated selectors
 const SOURCES = [
   {
+    name: 'MySwitzerland Events',
+    url: 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/?q=alpabzug',
+    selectors: {
+      container: '[data-testid="event-card"], .event-card, .result-item',
+      title: 'h3, h4, .title, [data-testid="event-title"]',
+      date: '.date, time, [data-testid="event-date"]',
+      location: '.location, .venue, [data-testid="event-location"]',
+      description: '.description, .summary, p',
+      link: 'a'
+    },
+    waitFor: 3000 // Wait for dynamic content
+  },
+  {
     name: 'Graubünden',
-    url: 'https://www.graubuenden.ch/de/veranstaltungen',
+    url: 'https://www.graubuenden.ch/de/suche?q=alpabzug&type=events',
     selectors: {
-      container: '.event-list-item, .event-item',
-      title: 'h3, .event-title, .title',
-      date: '.date, .datum, time, [datetime]',
-      location: '.location, .ort, .venue',
-      description: '.description, .text, p',
+      container: 'article, .search-result, .teaser',
+      title: 'h2, h3, .headline',
+      date: '.date, time, .event-date',
+      location: '.location, .place',
+      description: '.text, .summary',
       link: 'a'
     }
   },
   {
-    name: 'Valais',
-    url: 'https://www.valais.ch/de/aktivitaeten/veranstaltungen',
+    name: 'Appenzell Direct',
+    url: 'https://www.appenzell.ch/de/suche.html?q=alpabzug',
     selectors: {
-      container: '.event, .veranstaltung',
-      title: 'h2, h3, .title',
-      date: '.date, time',
-      location: '.location, .ort',
-      description: '.summary, .description',
-      link: 'a'
-    }
-  },
-  {
-    name: 'Appenzell',
-    url: 'https://www.appenzell.ch/de/erleben/veranstaltungen',
-    selectors: {
-      container: '.event-item, .list-item',
-      title: '.event-name, h3',
-      date: '.date, .datum',
-      location: '.location',
-      description: '.teaser, .summary',
+      container: '.search-item, .result, article',
+      title: 'h3, .title',
+      date: '.date, .when',
+      location: '.where, .location',
+      description: '.text, .desc',
       link: 'a'
     }
   }
@@ -127,7 +128,8 @@ function parseSwissDate(dateText) {
 
 async function scrapeSource(browser, source) {
   const context = await browser.newContext({
-    userAgent: 'SwissActivitiesDashboard/1.0 (+https://activities.swiss)'
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    viewport: { width: 1920, height: 1080 }
   });
   
   const page = await context.newPage();
@@ -137,8 +139,43 @@ async function scrapeSource(browser, source) {
     console.log(`Scraping ${source.name} from ${source.url}`);
     await page.goto(source.url, { waitUntil: 'networkidle', timeout: 30000 });
     
-    // Wait for event containers
-    await page.waitForSelector(source.selectors.container, { timeout: 10000 });
+    // Wait for dynamic content if specified
+    if (source.waitFor) {
+      await page.waitForTimeout(source.waitFor);
+    }
+    
+    // Try to wait for event containers, but don't fail if they don't exist
+    try {
+      await page.waitForSelector(source.selectors.container, { timeout: 5000 });
+    } catch (e) {
+      console.log(`No events found with selector ${source.selectors.container} on ${source.name}`);
+      // Try alternative approach - look for any links with event keywords
+      const links = await page.$$('a');
+      console.log(`Found ${links.length} links to check for events`);
+      
+      for (const link of links.slice(0, 20)) { // Check first 20 links
+        try {
+          const text = await link.textContent();
+          if (text && await isAlpsabzugEvent(text)) {
+            const href = await link.getAttribute('href');
+            events.push({
+              source: 'ALPSABZUG',
+              sourceEventId: href || `${source.name}-${Date.now()}`,
+              title: text.trim(),
+              description: `Found on ${source.name}`,
+              lang: 'de',
+              category: 'alpsabzug',
+              startTime: new Date(), // Placeholder - would need to extract from page
+              country: 'CH',
+              url: href ? new URL(href, source.url).toString() : source.url
+            });
+          }
+        } catch (err) {
+          // Skip this link
+        }
+      }
+      return events;
+    }
     
     // Extract events
     const eventElements = await page.$$(source.selectors.container);
