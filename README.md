@@ -1,6 +1,8 @@
 # Swiss Activities Dashboard
 
-A Next.js dashboard that aggregates events and activities near Schlieren, ZH from various Swiss sources including official tourism APIs and regional websites.
+**Production Status**: ✅ DEPLOYED (Vercel + Railway)
+
+A distributed Next.js application that aggregates events near Schlieren, Switzerland using a dual-service architecture for maximum scraping capabilities.
 
 ## Features
 
@@ -12,29 +14,62 @@ A Next.js dashboard that aggregates events and activities near Schlieren, ZH fro
 - **Rate Limiting**: Respects API limits (1 req/s for Switzerland Tourism)
 - **Responsive Design**: Mobile-friendly interface with Tailwind CSS
 
-## Tech Stack
+## Architecture
 
+### Vercel (Main App)
 - **Next.js 14** with App Router
-- **TypeScript** for type safety
-- **Prisma** with SQLite (dev) / PostgreSQL (production ready)
+- **TypeScript** for type safety  
+- **Prisma** with PostgreSQL
 - **Tailwind CSS** for styling
 - **Cheerio** for HTML scraping
-- **node-cron** for scheduled tasks
+- **Active Scrapers**: Switzerland Tourism API, Limmattal
 
-## Getting Started
+### Railway (Worker Service)
+- **Playwright** for browser automation
+- **Docker** container deployment
+- **Express** API for triggers
+- **Active Scraper**: Alpsabzug events
+- **Separate service** at `/railway-worker`
+
+## Production Deployment
 
 ### Prerequisites
 
-- Node.js 18+ and npm/yarn
-- Swiss Tourism API key (set as env var, do not commit)
+- Vercel account (for main app)
+- Railway account (for Playwright worker + PostgreSQL)
+- Node.js 18+ and yarn (NOT npm)
 
-### Installation
+### Vercel Setup
 
-1. Install dependencies:
+1. Connect GitHub repository
+2. Set environment variables:
+```env
+DATABASE_URL=<Railway PostgreSQL external URL>
+ST_API_KEY=<Your Switzerland Tourism API key>
+RAILWAY_WORKER_URL=<Your Railway worker URL>
+SOURCES_ENABLED=LIMMATTAL,ST
+```
+3. Deploy (automatic on push to main)
+
+### Railway Setup
+
+1. Create PostgreSQL database
+2. Create new service for worker:
+   - Set root directory: `/railway-worker`
+   - Add environment variables:
+   ```env
+   DATABASE_URL=${{Postgres.DATABASE_URL}}
+   NOMINATIM_EMAIL=your@email.com
+   ```
+3. Deploy (automatic on push)
+
+### Local Development
+
+⚠️ **IMPORTANT**: Playwright scraping does NOT work locally. Test on Railway only.
+
 ```bash
-npm install
-# or
 yarn install
+yarn dev
 ```
 
 2. Set up environment variables:

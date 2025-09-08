@@ -40,3 +40,8 @@ prisma/migrations/
 
 # Logs
 *.log
+
+# Private documentation (contains API keys)
+CLAUDE_PRIVATE.md
+*_PRIVATE.md
+NOTES_PRIVATE.md
