@@ -47,7 +47,14 @@ export class LimmattalScraper {
             if (!dateMatch) return;
             
             const startTime = this.parseGermanDate(dateMatch[1], dateMatch[2], dateMatch[3]);
-            if (!startTime) return;
+            if (!startTime || isNaN(startTime.getTime())) return;
+            
+            // Skip events too far in the past or future
+            const now = new Date();
+            const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+            const oneYearFromNow = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+            
+            if (startTime < twoWeeksAgo || startTime > oneYearFromNow) return;
             
             // Extract location from text
             const locationMatch = fullText.match(/(Schlieren|Dietikon|Oetwil|Urdorf|Oberengstringen|Weiningen|Limmattal)/i);
@@ -63,9 +70,19 @@ export class LimmattalScraper {
               lang: 'de',
               category: this.inferCategory(title, fullText),
               startTime,
+              endTime: undefined, // Required field
+              venueName: undefined, // Required field
+              street: undefined,
+              postalCode: undefined,
               city,
               country: 'CH',
-              url
+              lat: undefined,
+              lon: undefined,
+              priceMin: undefined,
+              priceMax: undefined,
+              currency: 'CHF',
+              url,
+              imageUrl: undefined
             };
             
             events.push(event);
@@ -91,11 +108,11 @@ export class LimmattalScraper {
         });
 
         console.log('Limmattal detail links found:', detailLinks.size);
-        const cap = Math.min(detailLinks.size, 15); // Reduce from 30 to 15 for speed
+        const cap = Math.min(detailLinks.size, 5); // Further reduce from 15 to 5 for speed
         const links = Array.from(detailLinks).slice(0, cap);
         for (const link of links) {
           try {
-            await this.delay(300); // Reduce delay from 600ms to 300ms
+            await this.delay(100); // Reduce delay from 300ms to 100ms
             const r = await fetch(link, { headers: { 'User-Agent': 'SwissActivitiesDashboard/1.0' } });
             if (!r.ok) continue;
             const page = await r.text();
@@ -236,10 +253,23 @@ export class LimmattalScraper {
       source: SOURCES.LIMMATTAL,
       sourceEventId: this.generateEventId(title, startTime),
       title,
+      description: undefined,
       lang: 'de',
       category: this.inferCategory(title),
       startTime,
-      country: 'CH'
+      endTime: undefined,
+      venueName: undefined,
+      street: undefined,
+      postalCode: undefined,
+      city: undefined,
+      country: 'CH',
+      lat: undefined,
+      lon: undefined,
+      priceMin: undefined,
+      priceMax: undefined,
+      currency: 'CHF',
+      url: undefined,
+      imageUrl: undefined
     };
   }
 

@@ -91,9 +91,9 @@ export class EventScheduler {
       result.duration = Date.now() - startTime;
       results.push(result);
 
-      // Add delay between scrapers to be respectful
+      // Reduce delay between scrapers to stay within time limits
       if (sourcesToRun.indexOf(source) < sourcesToRun.length - 1) {
-        await this.delay(2000);
+        await this.delay(500); // Reduced from 2000ms to 500ms
       }
     }
 
@@ -107,8 +107,8 @@ export class EventScheduler {
   }
 
   private async scrapeSource(source: string): Promise<RawEvent[]> {
-    // Add timeout protection for individual scrapers - longer timeout for Playwright
-    const timeoutMs = source === 'ALPSABZUG' ? 50000 : 20000; // 50s for Playwright, 20s for others
+    // Reduce timeout for individual scrapers to stay within Vercel limits
+    const timeoutMs = source.startsWith('RAILWAY') ? 15000 : 10000; // 15s for Railway, 10s for others
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error(`${source} scraper timed out after ${timeoutMs/1000} seconds`)), timeoutMs);
     });

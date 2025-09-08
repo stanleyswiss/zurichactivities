@@ -35,7 +35,15 @@ export class RailwayProxyScraper {
         throw new Error(`Railway worker responded with ${response.status}: ${errorText}`);
       }
 
-      const result = await response.json();
+      let result;
+      const responseText = await response.text();
+      try {
+        result = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error(`Railway ${scraperType} JSON parsing error:`, jsonError);
+        console.error(`Response text:`, responseText.substring(0, 200));
+        throw new Error(`Failed to parse Railway response as JSON: ${responseText.substring(0, 100)}`);
+      }
       console.log(`Railway ${scraperType} scraper started successfully`);
       
       // Return estimated results since scraping happens asynchronously
@@ -83,7 +91,15 @@ export class RailwayProxyScraper {
         throw new Error(`Railway worker responded with ${response.status}: ${errorText}`);
       }
 
-      const result = await response.json();
+      let result;
+      const responseText = await response.text();
+      try {
+        result = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error(`Railway ${scraperType} JSON parsing error:`, jsonError);
+        console.error(`Response text:`, responseText.substring(0, 200));
+        throw new Error(`Failed to parse Railway response as JSON: ${responseText.substring(0, 100)}`);
+      }
       console.log(`Railway ${scraperType} scraping started successfully`);
       
       // Since we're doing async scraping, return estimated counts
