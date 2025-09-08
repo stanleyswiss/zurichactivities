@@ -1,7 +1,6 @@
 import cron from 'node-cron';
 import { SwitzerlandTourismScraper } from './scrapers/switzerland-tourism';
 import { LimmattalScraper } from './scrapers/limmattal';
-import { AlpsabzugScraper } from './scrapers/alpsabzug-scraper';
 import { db } from './db';
 import { generateUniquenessHash, normalizeTitle } from './utils/deduplication';
 import { RawEvent } from '@/types/event';
@@ -124,9 +123,10 @@ export class EventScheduler {
         const limmattalScraper = new LimmattalScraper();
         return await limmattalScraper.scrapeEvents();
       case 'ALPSABZUG':
-        // Use new Playwright-based scraper for comprehensive Alpsabzug event collection
-        const alpsabzugScraper = new AlpsabzugScraper();
-        return await alpsabzugScraper.scrapeEvents();
+        // ALPSABZUG scraping is handled by Railway worker service
+        // This source should not be called from Vercel
+        console.log('ALPSABZUG scraping is handled by Railway worker');
+        return [];
       // Only real data sources are enabled
       default:
         throw new Error(`Unknown source: ${source}`);
