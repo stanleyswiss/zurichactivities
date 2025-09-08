@@ -210,11 +210,19 @@ app.listen(PORT, () => {
 // Run initial scrape after a delay to ensure DB connection
 setTimeout(() => {
   console.log('Running initial scrape with FAST MySwitzerland scraper...');
-  runFastMySwitzerlandScraper().catch(error => {
-    console.error('FAST MySwitzerland scraper failed, falling back to Municipal scraper:', error);
-    runMunicipalScraper().catch(error => {
-      console.error('Municipal scraper failed, falling back to original MySwitzerland scraper:', error);
-      runMySwitzerlandScraper().catch(error => {
+  runFastMySwitzerlandScraper().then(result => {
+    if (result && result.eventsSaved === 0) {
+      console.log('Fast scraper found no events, falling back to original MySwitzerland scraper...');
+      return runMySwitzerlandScraper();
+    }
+    console.log(`Fast scraper success: ${result.eventsSaved} events saved`);
+  }).catch(error => {
+    console.error('FAST MySwitzerland scraper failed, falling back to original MySwitzerland scraper:', error);
+    runMySwitzerlandScraper().catch(error => {
+      console.error('MySwitzerland scraper failed, falling back to Municipal scraper:', error);
+      runMunicipalScraper().catch(error => {
+        console.error('Municipal scraper failed, falling back to structured data scraper:', error);
+        runStructuredDataScraper().catch(error => {
         console.error('MySwitzerland scraper failed, falling back to structured data scraper:', error);
         runStructuredDataScraper().catch(error => {
           console.error('Structured data scraper failed, falling back to simple:', error);

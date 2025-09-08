@@ -85,62 +85,82 @@ class FastMySwitzerlandScraper {
         // Ignore if no load more button
       }
 
+      // Debug: First let's see what's on the page
+      const debugInfo = await page.evaluate(() => {
+        return {
+          title: document.title,
+          url: window.location.href,
+          bodyText: document.body.textContent.substring(0, 500),
+          totalLinks: document.querySelectorAll('a').length,
+          totalElements: document.querySelectorAll('*').length
+        };
+      });
+      
+      console.log(`Debug ${category.name}:`, debugInfo);
+      
       // Extract all event data from the listing page directly (no detail page visits)
       const pageEvents = await page.evaluate(() => {
         const events = [];
         
-        // Try multiple possible event containers
-        const containers = document.querySelectorAll(
-          '.event, .veranstaltung, article[class*="event"], .list-item, .result-item, [data-event]'
-        );
+        // Much broader search - try to find ANY links that might be events
+        const allLinks = Array.from(document.querySelectorAll('a[href*="/veranstaltungen/"], a[href*="/event"], a[href*="/erlebnis"]'));
         
-        containers.forEach(container => {
+        console.log(`Found ${allLinks.length} potential event links`);
+        
+        allLinks.forEach(link => {
           try {
-            // Extract title
-            const titleEl = container.querySelector('h2, h3, h4, .title, [class*="title"]');
-            const title = titleEl?.textContent?.trim();
-            if (!title) return;
+            const title = link.textContent?.trim();
+            if (!title || title.length < 3) return;
             
-            // Extract link
-            const linkEl = container.querySelector('a[href*="/veranstaltungen/"], a[href*="/event"]');
-            const url = linkEl?.href;
+            // Get the link's parent container to find more info
+            let container = link.closest('article, .item, .card, .result, .event, .box, div[class*="item"]') || link;
             
-            // Extract date - try multiple selectors
-            const dateEl = container.querySelector(
-              '.date, [class*="date"], time, .when, [class*="datum"]'
-            );
-            const dateText = dateEl?.textContent?.trim() || '';
+            // Look for date anywhere in the container
+            const allText = container.textContent;
+            const dateMatch = allText.match(/\d{1,2}\.\d{1,2}\.\d{4}|\d{1,2}\.\s*\w+\s+\d{4}/);
+            const dateText = dateMatch ? dateMatch[0] : '';
             
-            // Extract location
-            const locationEl = container.querySelector(
-              '.location, [class*="location"], .venue, [class*="ort"], address'
-            );
-            const location = locationEl?.textContent?.trim() || '';
-            
-            // Extract description
-            const descEl = container.querySelector(
-              '.description, [class*="desc"], .teaser, p'
-            );
-            const description = descEl?.textContent?.trim() || '';
-            
-            // Extract category
-            const categoryEl = container.querySelector(
-              '.category, [class*="category"], .type, [class*="rubrik"]'
-            );
-            const category = categoryEl?.textContent?.trim() || '';
+            // Look for location hints
+            const locationMatch = allText.match(/\b\w+(?:strasse|platz|weg|gasse|hof|berg|dorf|stadt)\b|\b\d{4}\s+\w+/i);
+            const location = locationMatch ? locationMatch[0] : '';
             
             events.push({
-              title,
-              url,
+              title: title.substring(0, 200),
+              url: link.href,
               dateText,
               location,
-              description: description.substring(0, 300),
-              category
+              description: allText.substring(0, 300),
+              category: ''
             });
           } catch (e) {
             // Skip invalid events
           }
         });
+        
+        // If no specific event links, try to find ANY content that looks like events
+        if (events.length === 0) {
+          const possibleEvents = Array.from(document.querySelectorAll('h1, h2, h3, h4, strong, .title'));
+          
+          possibleEvents.forEach(element => {
+            const title = element.textContent?.trim();
+            if (!title || title.length < 5) return;
+            
+            // Look for event-like keywords
+            if (/fest|markt|konzert|show|ausstellung|workshop|kurs|event|veranstaltung|festival/i.test(title)) {
+              const container = element.closest('article, .item, .card, div') || element;
+              const allText = container.textContent;
+              
+              events.push({
+                title: title.substring(0, 200),
+                url: window.location.href,
+                dateText: '',
+                location: '',
+                description: allText.substring(0, 300),
+                category: ''
+              });
+            }
+          });
+        }
         
         return events;
       });

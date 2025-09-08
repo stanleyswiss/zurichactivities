@@ -45,7 +45,7 @@ class MySwitzerlandEventScraper {
         await page.waitForSelector('.event, .veranstaltung, [class*="event"], article', { timeout: 10000 });
       } catch (error) {
         console.log('Event containers not found, waiting for general content...');
-        await page.waitForTimeout(5000);
+        await page.waitForTimeout(1000); // Reduced from 5000ms
       }
 
       // Check for "Load More" or pagination buttons and click them
@@ -56,7 +56,7 @@ class MySwitzerlandEventScraper {
         while (loadMoreButton && clicks < 5) { // Max 5 clicks to prevent infinite loops
           console.log('Found "Load More" button, clicking...');
           await loadMoreButton.click();
-          await page.waitForTimeout(2000);
+          await page.waitForTimeout(500); // Reduced from 2000ms
           loadMoreButton = await page.$('.load-more, [data-load-more], .show-more, .mehr-anzeigen');
           clicks++;
         }
@@ -107,7 +107,7 @@ class MySwitzerlandEventScraper {
                 pageLoaded = true;
               } catch (error) {
                 console.log('Title not found, waiting for general content...');
-                await page.waitForTimeout(3000);
+                await page.waitForTimeout(1000); // Reduced from 3000ms
                 pageLoaded = true; // Continue anyway
               }
               
@@ -115,7 +115,7 @@ class MySwitzerlandEventScraper {
               retries++;
               console.log(`Page load attempt ${retries} failed for ${eventLink.href}: ${error.message}`);
               if (retries < maxRetries) {
-                await page.waitForTimeout(5000); // Wait before retry
+                await page.waitForTimeout(1000); // Reduced from 5000ms // Wait before retry
               }
             }
           }
