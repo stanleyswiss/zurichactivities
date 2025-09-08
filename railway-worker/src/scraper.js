@@ -1,5 +1,6 @@
 const { chromium } = require('playwright');
 const { PrismaClient } = require('@prisma/client');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const prisma = new PrismaClient({
