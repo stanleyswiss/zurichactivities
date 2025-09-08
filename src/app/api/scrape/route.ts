@@ -34,7 +34,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { sources, force } = body;
     
-    const requestedSources = sources || process.env.SOURCES_ENABLED?.split(',').map(s => s.trim().toUpperCase()) || ['ST', 'LIMMATTAL'];
+    // Default sources now include Railway scrapers
+    const defaultSources = process.env.SOURCES_ENABLED?.split(',').map(s => s.trim().toUpperCase()) || ['ST', 'LIMMATTAL'];
+    
+    // Always include Railway scrapers when triggered from UI (no specific sources)
+    const requestedSources = sources || [...defaultSources, 'RAILWAY_ALL'];
     
     // Use the scheduler to run scrapers
     const results = await eventScheduler.runAllScrapers(requestedSources, force);
@@ -82,7 +86,11 @@ export async function GET(request: NextRequest) {
     const forceParam = searchParams.get('force');
     const force = forceParam === '1' || forceParam === 'true';
 
-    const requestedSources = sources.length > 0 ? sources : process.env.SOURCES_ENABLED?.split(',').map(s => s.trim().toUpperCase()) || ['ST', 'LIMMATTAL'];
+    // Default sources now include Railway scrapers
+    const defaultSources = process.env.SOURCES_ENABLED?.split(',').map(s => s.trim().toUpperCase()) || ['ST', 'LIMMATTAL'];
+    
+    // For GET requests, also include Railway if no specific sources requested
+    const requestedSources = sources.length > 0 ? sources : [...defaultSources, 'RAILWAY_ALL'];
 
     const results = await eventScheduler.runAllScrapers(requestedSources, force);
 

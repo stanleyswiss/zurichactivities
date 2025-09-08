@@ -140,13 +140,14 @@ model Event {
 DATABASE_URL="postgres://..."             # Railway connection
 DATABASE_PUBLIC_URL="postgres://..."       # Pooled/public URL for Vercel
 ST_API_KEY="<your_key>"                   # set in env only
+RAILWAY_WORKER_URL="https://..."          # Railway worker endpoint (e.g., https://alpsabzug-scraper.up.railway.app)
 NEXT_PUBLIC_SCHLIEREN_LAT="47.396"
 NEXT_PUBLIC_SCHLIEREN_LON="8.447"
 SCRAPE_TOKEN="<admin_token_optional>"     # required for /api/migrate; used by /api/scrape if set
 NOMINATIM_EMAIL="you@example.com"         # optional, appended to UA for geocoding
 GEOCODE_CACHE_TTL_DAYS="365"             # optional cache TTL in days
 SCRAPE_PUBLIC="false"                    # if "true", allow UI to trigger /api/scrape without token (testing only)
-SOURCES_ENABLED="LIMMATTAL,ST"         # default sources (ALPSABZUG requires Playwright - doesn't work on Vercel)
+SOURCES_ENABLED="ST,LIMMATTAL"           # default Vercel sources (Railway sources added automatically when UI triggers)
 ST_EVENTS_URL="https://opendata.myswitzerland.io/v1/attractions"  # Events are nested in attractions (x-api-key)
 ST_SEARCH_URL="https://api.discover.swiss/info/v2/search"  # If using POST search API (Ocp-Apim-Subscription-Key)
 ST_SUBSCRIPTION_KEY="<subscription_key_if_needed>"        # Key for ST_SEARCH_URL
@@ -175,7 +176,13 @@ ST_LIMIT="100"                            # Optional
 - **Status**: DEPLOYED ON RAILWAY (separate service)
 - **Location**: `/railway-worker` directory
 - **Method**: Playwright browser automation
-- **URLs**: MySwitzerland, Graubünden, Appenzell search pages
+- **Scrapers Available**:
+  - **MySwitzerland Scraper**: Extracts JSON-LD structured data from event pages
+  - **Advanced Scraper**: Multi-source scraper with 7+ Swiss tourism APIs
+  - **Structured Data Scraper**: Extracts Schema.org Event data
+  - **Simple Scraper**: Fallback text-based scraper
+- **Access**: Via HTTP POST to `{RAILWAY_WORKER_URL}/scrape`
+- **Integration**: Automatically triggered when UI "Update Now" button is clicked
 - **Note**: REMOVED from main app due to Vercel limitations
 
 ### ❌ 4. Zurich Tourism - DISABLED
@@ -358,19 +365,30 @@ export const CATEGORIES = {
 
 1. **Start Development Server**:
    ```bash
-   npm run dev
+   yarn dev
    # Access at http://localhost:3000
    ```
 
 2. **Update Event Data**:
-   - Use "Update Data" button in UI (runs real scrapers: ST, LIMMATTAL)
-   - Or manually: `curl -X POST http://localhost:3000/api/scrape -H 'Content-Type: application/json' -d '{"sources":["ST","LIMMATTAL"],"force":false}'`
+   - Use "Update Data" button in UI (runs ALL scrapers: ST, LIMMATTAL + Railway MySwitzerland/Alpsabzug)
+   - The UI automatically triggers Railway scrapers if RAILWAY_WORKER_URL is configured
+   - Or manually for specific sources: 
+     ```bash
+     curl -X POST http://localhost:3000/api/scrape \
+       -H 'Content-Type: application/json' \
+       -d '{"sources":["ST","LIMMATTAL","RAILWAY_ALL"],"force":false}'
+     ```
 
 3. **Database Operations**:
    ```bash
-   npm run db:push      # Apply schema changes  
-   npm run db:studio    # Open Prisma studio
+   yarn db:push      # Apply schema changes  
+   yarn db:studio    # Open Prisma studio
    ```
+
+4. **Configure Railway Integration**:
+   - Set `RAILWAY_WORKER_URL` in Vercel environment variables
+   - Point it to your Railway worker deployment (e.g., https://alpsabzug-scraper.up.railway.app)
+   - The UI will automatically include Railway scrapers when updating data
 
 ## 🎯 NEXT DEVELOPMENT PRIORITIES (Future Sessions)
 

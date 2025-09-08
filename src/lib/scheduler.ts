@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { SwitzerlandTourismScraper } from './scrapers/switzerland-tourism';
 import { LimmattalScraper } from './scrapers/limmattal';
+import { RailwayProxyScraper } from './scrapers/railway-proxy';
 import { db } from './db';
 import { generateUniquenessHash, normalizeTitle } from './utils/deduplication';
 import { RawEvent } from '@/types/event';
@@ -71,6 +72,13 @@ export class EventScheduler {
           result.eventsSaved = savedCount;
         }
 
+        // Special handling for Railway scrapers that save directly to DB
+        if ((source === 'RAILWAY' || source === 'RAILWAY_ALL') && (this as any)._lastRailwayResult) {
+          result.eventsFound = (this as any)._lastRailwayResult.eventsFound || 0;
+          result.eventsSaved = (this as any)._lastRailwayResult.eventsSaved || 0;
+          delete (this as any)._lastRailwayResult;
+        }
+
         result.success = true;
         this.lastRuns[source] = new Date();
 
@@ -123,9 +131,17 @@ export class EventScheduler {
         const limmattalScraper = new LimmattalScraper();
         return await limmattalScraper.scrapeEvents();
       case 'ALPSABZUG':
-        // ALPSABZUG scraping is handled by Railway worker service
-        // This source should not be called from Vercel
-        console.log('ALPSABZUG scraping is handled by Railway worker');
+        // Use Railway proxy to trigger MySwitzerland scraper
+        const railwayProxy = new RailwayProxyScraper();
+        return await railwayProxy.scrapeEvents('myswitzerland');
+      case 'RAILWAY':
+      case 'RAILWAY_ALL':
+        // Trigger all Railway scrapers comprehensively
+        const railwayProxyAll = new RailwayProxyScraper();
+        const railwayResult = await railwayProxyAll.triggerAllRailwayScrapers();
+        // Store the result in a special property so we can report it
+        (this as any)._lastRailwayResult = railwayResult;
+        // Return empty array as Railway saves directly to DB
         return [];
       // Only real data sources are enabled
       default:
