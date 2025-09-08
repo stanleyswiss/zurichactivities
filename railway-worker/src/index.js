@@ -17,8 +17,16 @@ app.get('/health', (req, res) => {
 app.post('/scrape', async (req, res) => {
   try {
     console.log('Manual scrape triggered via HTTP');
-    const result = await scrapeSimple();
-    res.json({ success: true, ...result });
+    const scraperType = req.body.type || 'full'; // 'full' or 'simple'
+    
+    let result;
+    if (scraperType === 'simple') {
+      result = await scrapeSimple();
+    } else {
+      result = await runAlpsabzugScraper();
+    }
+    
+    res.json({ success: true, scraperType, ...result });
   } catch (error) {
     console.error('Manual scrape failed:', error);
     res.status(500).json({ error: 'Scrape failed', details: error.message });
@@ -32,8 +40,11 @@ app.listen(PORT, () => {
 
 // Run initial scrape after a delay to ensure DB connection
 setTimeout(() => {
-  console.log('Running initial scrape with simplified scraper...');
-  scrapeSimple().catch(console.error);
+  console.log('Running initial scrape with full scraper...');
+  runAlpsabzugScraper().catch(error => {
+    console.error('Full scraper failed, falling back to simple:', error);
+    scrapeSimple().catch(console.error);
+  });
 }, 5000);
 
 // Schedule to run every day at 7 AM (1 hour after main scraper)
@@ -41,9 +52,14 @@ const schedule = process.env.CRON_SCHEDULE || '0 7 * * *';
 cron.schedule(schedule, async () => {
   console.log('Starting scheduled Alpsabzug scrape...');
   try {
-    await scrapeSimple();
+    await runAlpsabzugScraper();
   } catch (error) {
-    console.error('Scheduled scrape failed:', error);
+    console.error('Full scraper failed, trying simple scraper:', error);
+    try {
+      await scrapeSimple();
+    } catch (fallbackError) {
+      console.error('Both scrapers failed:', fallbackError);
+    }
   }
 });
 
