@@ -9,6 +9,10 @@ const { runStructuredDataScraper } = require('./structured-data-scraper');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Add JSON body parser middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 console.log('Railway Alpsabzug Scraper Worker Started');
 
 // Health check endpoint
@@ -20,7 +24,8 @@ app.get('/health', (req, res) => {
 app.post('/scrape', async (req, res) => {
   try {
     console.log('Manual scrape triggered via HTTP');
-    const scraperType = req.body.type || 'advanced'; // 'simple', 'full', 'advanced', 'structured'
+    console.log('Request body:', req.body);
+    const scraperType = (req.body && req.body.type) ? req.body.type : 'comprehensive'; // Default to comprehensive
     
     let result;
     switch (scraperType) {
