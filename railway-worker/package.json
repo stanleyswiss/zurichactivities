@@ -7,7 +7,12 @@
     "start": "node src/index.js",
     "build": "echo 'No build required for Node.js worker'",
     "dev": "node --watch src/index.js",
-    "scrape": "node src/scrape.js"
+    "scrape": "node src/scrape.js",
+    "test": "node test-scrapers.js",
+    "test:advanced": "node test-scrapers.js advanced",
+    "test:structured": "node test-scrapers.js structured",
+    "test:simple": "node test-scrapers.js simple",
+    "test:all": "node test-scrapers.js all"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",

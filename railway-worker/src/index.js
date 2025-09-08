@@ -2,6 +2,8 @@ const cron = require('node-cron');
 const express = require('express');
 const { runAlpsabzugScraper } = require('./scraper');
 const { scrapeSimple } = require('./scraper-simple');
+const { runAdvancedAlpsabzugScraper } = require('./scraper-advanced');
+const { runStructuredDataScraper } = require('./structured-data-scraper');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,17 +15,72 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', service: 'alpsabzug-scraper' });
 });
 
-// Manual scrape endpoint
+// Enhanced manual scrape endpoint with multiple scraper options
 app.post('/scrape', async (req, res) => {
   try {
     console.log('Manual scrape triggered via HTTP');
-    const scraperType = req.body.type || 'full'; // 'full' or 'simple'
+    const scraperType = req.body.type || 'advanced'; // 'simple', 'full', 'advanced', 'structured'
     
     let result;
-    if (scraperType === 'simple') {
-      result = await scrapeSimple();
-    } else {
-      result = await runAlpsabzugScraper();
+    switch (scraperType) {
+      case 'simple':
+        result = await scrapeSimple();
+        break;
+      case 'full':
+        result = await runAlpsabzugScraper();
+        break;
+      case 'advanced':
+        result = await runAdvancedAlpsabzugScraper();
+        break;
+      case 'structured':
+        result = await runStructuredDataScraper();
+        break;
+      case 'comprehensive':
+        // Run multiple scrapers for maximum coverage
+        console.log('Running comprehensive scraping with all methods...');
+        const results = {};
+        
+        try {
+          console.log('1. Running structured data scraper...');
+          results.structured = await runStructuredDataScraper();
+        } catch (e) {
+          console.error('Structured data scraper failed:', e.message);
+          results.structured = { error: e.message };
+        }
+        
+        try {
+          console.log('2. Running advanced scraper...');
+          results.advanced = await runAdvancedAlpsabzugScraper();
+        } catch (e) {
+          console.error('Advanced scraper failed:', e.message);
+          results.advanced = { error: e.message };
+        }
+        
+        try {
+          console.log('3. Running fallback scraper...');
+          results.fallback = await runAlpsabzugScraper();
+        } catch (e) {
+          console.error('Fallback scraper failed:', e.message);
+          results.fallback = { error: e.message };
+        }
+        
+        // Combine results
+        const totalFound = (results.structured?.eventsFound || 0) + 
+                          (results.advanced?.eventsFound || 0) + 
+                          (results.fallback?.eventsFound || 0);
+        const totalSaved = (results.structured?.eventsSaved || 0) + 
+                          (results.advanced?.eventsSaved || 0) + 
+                          (results.fallback?.eventsSaved || 0);
+        
+        result = {
+          comprehensive: true,
+          totalEventsFound: totalFound,
+          totalEventsSaved: totalSaved,
+          results
+        };
+        break;
+      default:
+        result = await runAdvancedAlpsabzugScraper();
     }
     
     res.json({ success: true, scraperType, ...result });
@@ -40,25 +97,49 @@ app.listen(PORT, () => {
 
 // Run initial scrape after a delay to ensure DB connection
 setTimeout(() => {
-  console.log('Running initial scrape with full scraper...');
-  runAlpsabzugScraper().catch(error => {
-    console.error('Full scraper failed, falling back to simple:', error);
-    scrapeSimple().catch(console.error);
+  console.log('Running initial scrape with advanced scraper...');
+  runAdvancedAlpsabzugScraper().catch(error => {
+    console.error('Advanced scraper failed, falling back to structured data scraper:', error);
+    runStructuredDataScraper().catch(error => {
+      console.error('Structured data scraper failed, falling back to simple:', error);
+      scrapeSimple().catch(console.error);
+    });
   });
 }, 5000);
 
 // Schedule to run every day at 7 AM (1 hour after main scraper)
 const schedule = process.env.CRON_SCHEDULE || '0 7 * * *';
 cron.schedule(schedule, async () => {
-  console.log('Starting scheduled Alpsabzug scrape...');
+  console.log('Starting scheduled comprehensive Alpsabzug scrape...');
+  
   try {
-    await runAlpsabzugScraper();
+    // Primary: Advanced scraper with multiple sources
+    console.log('1. Running advanced scraper...');
+    await runAdvancedAlpsabzugScraper();
   } catch (error) {
-    console.error('Full scraper failed, trying simple scraper:', error);
+    console.error('Advanced scraper failed:', error);
+    
     try {
-      await scrapeSimple();
-    } catch (fallbackError) {
-      console.error('Both scrapers failed:', fallbackError);
+      // Secondary: Structured data scraper
+      console.log('2. Running structured data scraper as fallback...');
+      await runStructuredDataScraper();
+    } catch (structuredError) {
+      console.error('Structured data scraper failed:', structuredError);
+      
+      try {
+        // Tertiary: Original scraper
+        console.log('3. Running original scraper as final fallback...');
+        await runAlpsabzugScraper();
+      } catch (originalError) {
+        console.error('Original scraper failed, trying simple scraper:', originalError);
+        
+        try {
+          // Final fallback: Simple scraper
+          await scrapeSimple();
+        } catch (simpleError) {
+          console.error('All scrapers failed:', simpleError);
+        }
+      }
     }
   }
 });
