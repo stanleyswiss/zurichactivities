@@ -223,8 +223,6 @@ setTimeout(() => {
       runMunicipalScraper().catch(error => {
         console.error('Municipal scraper failed, falling back to structured data scraper:', error);
         runStructuredDataScraper().catch(error => {
-        console.error('MySwitzerland scraper failed, falling back to structured data scraper:', error);
-        runStructuredDataScraper().catch(error => {
           console.error('Structured data scraper failed, falling back to simple:', error);
           scrapeSimple().catch(console.error);
         });
