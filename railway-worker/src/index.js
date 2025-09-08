@@ -25,7 +25,8 @@ app.post('/scrape', async (req, res) => {
   try {
     console.log('Manual scrape triggered via HTTP');
     console.log('Request body:', req.body);
-    const scraperType = (req.body && req.body.type) ? req.body.type : 'comprehensive'; // Default to comprehensive
+    const scraperType = (req.body && req.body.type) ? req.body.type : 'comprehensive';
+    const async = req.body.async === true; // Allow async mode to prevent timeouts
     
     let result;
     switch (scraperType) {
@@ -45,7 +46,61 @@ app.post('/scrape', async (req, res) => {
         result = await runMySwitzerlandScraper();
         break;
       case 'comprehensive':
-        // Run multiple scrapers for maximum coverage
+        // Check if we should run async to avoid timeouts
+        if (async) {
+          console.log('Starting comprehensive scraping in background (async mode)...');
+          // Start the comprehensive scraping in background
+          setImmediate(async () => {
+            try {
+              const asyncResults = {};
+              
+              // Run all scrapers in background
+              try {
+                console.log('Background: Running MySwitzerland scraper...');
+                asyncResults.myswitzerland = await runMySwitzerlandScraper();
+              } catch (e) {
+                console.error('Background MySwitzerland scraper failed:', e.message);
+              }
+
+              try {
+                console.log('Background: Running structured data scraper...');
+                asyncResults.structured = await runStructuredDataScraper();
+              } catch (e) {
+                console.error('Background structured scraper failed:', e.message);
+              }
+
+              try {
+                console.log('Background: Running advanced scraper...');
+                asyncResults.advanced = await runAdvancedAlpsabzugScraper();
+              } catch (e) {
+                console.error('Background advanced scraper failed:', e.message);
+              }
+
+              const totalFound = (asyncResults.myswitzerland?.eventsFound || 0) +
+                                (asyncResults.structured?.eventsFound || 0) + 
+                                (asyncResults.advanced?.eventsFound || 0);
+              const totalSaved = (asyncResults.myswitzerland?.eventsSaved || 0) +
+                                (asyncResults.structured?.eventsSaved || 0) + 
+                                (asyncResults.advanced?.eventsSaved || 0);
+                                
+              console.log(`Background comprehensive scraping complete: ${totalFound} found, ${totalSaved} saved`);
+            } catch (error) {
+              console.error('Background comprehensive scraping failed:', error);
+            }
+          });
+          
+          // Return immediate response
+          result = {
+            comprehensive: true,
+            async: true,
+            message: 'Comprehensive scraping started in background',
+            totalEventsFound: 0, // Will be updated as scrapers complete
+            totalEventsSaved: 0
+          };
+          break;
+        }
+        
+        // Synchronous comprehensive scraping (original behavior)
         console.log('Running comprehensive scraping with all methods...');
         const results = {};
         

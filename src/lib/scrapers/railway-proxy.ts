@@ -16,26 +16,30 @@ export class RailwayProxyScraper {
     }
 
     try {
-      console.log(`Calling Railway worker for ${scraperType} scraping...`);
+      console.log(`Triggering Railway worker for ${scraperType} scraping (async)...`);
       
+      // Fire and forget - start the scraping but don't wait for completion
+      // to avoid Vercel timeout issues
       const response = await fetch(`${this.railwayUrl}/scrape`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ type: scraperType }),
-        signal: AbortSignal.timeout(60000), // 60 second timeout
+        body: JSON.stringify({ type: scraperType, async: true }),
+        signal: AbortSignal.timeout(10000), // Reduced to 10 seconds - just to confirm it starts
       });
 
       if (!response.ok) {
-        throw new Error(`Railway worker responded with ${response.status}`);
+        // Try to get error details
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`Railway worker responded with ${response.status}: ${errorText}`);
       }
 
       const result = await response.json();
-      console.log(`Railway ${scraperType} scraper: found ${result.eventsFound || 0} events`);
+      console.log(`Railway ${scraperType} scraper started successfully`);
       
-      // Railway worker saves events directly to the database
-      // So we return empty array here - the events are already saved
+      // Return estimated results since scraping happens asynchronously
+      // The actual events are saved directly to the database by Railway
       return [];
     } catch (error) {
       console.error(`Railway proxy scraper error:`, error);
@@ -51,47 +55,35 @@ export class RailwayProxyScraper {
     }
 
     try {
-      // Trigger comprehensive scraping which runs all Railway scrapers
+      console.log('Triggering Railway comprehensive scraping (async)...');
+      
+      // Trigger comprehensive scraping but don't wait for full completion
       const response = await fetch(`${this.railwayUrl}/scrape`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ type: 'comprehensive' }),
-        signal: AbortSignal.timeout(120000), // 2 minute timeout for comprehensive
+        body: JSON.stringify({ type: 'comprehensive', async: true }),
+        signal: AbortSignal.timeout(15000), // 15 second timeout - just to confirm it starts
       });
 
       if (!response.ok) {
-        throw new Error(`Railway worker responded with ${response.status}`);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`Railway worker responded with ${response.status}: ${errorText}`);
       }
 
       const result = await response.json();
+      console.log('Railway comprehensive scraping started successfully');
       
-      // Calculate totals from comprehensive results
-      let totalFound = 0;
-      let totalSaved = 0;
-      
-      if (result.totalEventsFound !== undefined) {
-        totalFound = result.totalEventsFound;
-        totalSaved = result.totalEventsSaved || 0;
-      } else if (result.myswitzerland || result.structured || result.advanced) {
-        // Sum up from individual scraper results
-        const scraperResults = [
-          result.myswitzerland,
-          result.structured, 
-          result.advanced,
-          result.original
-        ].filter(Boolean);
-        
-        totalFound = scraperResults.reduce((sum, r) => sum + (r.eventsFound || 0), 0);
-        totalSaved = scraperResults.reduce((sum, r) => sum + (r.eventsSaved || 0), 0);
-      }
-      
-      console.log(`Railway comprehensive scraping completed: ${totalFound} found, ${totalSaved} saved`);
-      
-      return { eventsFound: totalFound, eventsSaved: totalSaved };
+      // Since we're doing async scraping, return estimated counts
+      // The actual scraping continues in the background on Railway
+      return { 
+        eventsFound: result.totalEventsFound || 0, 
+        eventsSaved: result.totalEventsSaved || 0 
+      };
     } catch (error) {
       console.error('Railway comprehensive scraper error:', error);
+      // Return 0 but don't fail - Railway might still be scraping in background
       return { eventsFound: 0, eventsSaved: 0 };
     }
   }
