@@ -27,44 +27,25 @@ const ALPSABZUG_TERMS = [
   'alpbetrieb', 'alpwirtschaft', 'bergbauern'
 ];
 
-// Target sources for Alpsabzug events - updated selectors
+// Target sources for Alpsabzug events - simplified approach
 const SOURCES = [
   {
-    name: 'MySwitzerland Events',
-    url: 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/?q=alpabzug',
-    selectors: {
-      container: '[data-testid="event-card"], .event-card, .result-item',
-      title: 'h3, h4, .title, [data-testid="event-title"]',
-      date: '.date, time, [data-testid="event-date"]',
-      location: '.location, .venue, [data-testid="event-location"]',
-      description: '.description, .summary, p',
-      link: 'a'
-    },
-    waitFor: 3000 // Wait for dynamic content
+    name: 'MySwitzerland Simple',
+    url: 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/',
+    searchTerm: 'alpabzug',
+    fallbackOnly: true // Use link search only
   },
   {
-    name: 'Graubünden',
-    url: 'https://www.graubuenden.ch/de/suche?q=alpabzug&type=events',
-    selectors: {
-      container: 'article, .search-result, .teaser',
-      title: 'h2, h3, .headline',
-      date: '.date, time, .event-date',
-      location: '.location, .place',
-      description: '.text, .summary',
-      link: 'a'
-    }
+    name: 'Appenzell Tourism',  
+    url: 'https://appenzellerland.ch/de/erleben/veranstaltungen',
+    searchTerm: 'alpabzug',
+    fallbackOnly: true
   },
   {
-    name: 'Appenzell Direct',
-    url: 'https://www.appenzell.ch/de/suche.html?q=alpabzug',
-    selectors: {
-      container: '.search-item, .result, article',
-      title: 'h3, .title',
-      date: '.date, .when',
-      location: '.where, .location',
-      description: '.text, .desc',
-      link: 'a'
-    }
+    name: 'Bern Tourism',
+    url: 'https://www.bern.com/de/veranstaltungen',
+    searchTerm: 'alpabzug',
+    fallbackOnly: true
   }
 ];
 
@@ -139,23 +120,57 @@ async function scrapeSource(browser, source) {
     console.log(`Scraping ${source.name} from ${source.url}`);
     await page.goto(source.url, { waitUntil: 'networkidle', timeout: 30000 });
     
-    // Wait for dynamic content if specified
-    if (source.waitFor) {
-      await page.waitForTimeout(source.waitFor);
+    // Wait for content to load
+    await page.waitForTimeout(3000);
+    
+    // For simplified approach, just search all text
+    if (source.fallbackOnly) {
+      console.log(`Using simplified search for ${source.name}`);
+      
+      // Get all text content
+      const pageText = await page.evaluate(() => document.body.innerText);
+      
+      // Search for Alpsabzug events in the text
+      const lines = pageText.split('\n').filter(line => line.trim());
+      let foundEvents = 0;
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (await isAlpsabzugEvent(line)) {
+          foundEvents++;
+          // Look for date in nearby lines
+          let dateText = '';
+          for (let j = Math.max(0, i-2); j < Math.min(lines.length, i+3); j++) {
+            if (lines[j].match(/\d{1,2}\.\d{1,2}\.\d{4}|\d{1,2}\.\s*\w+\s+\d{4}/)) {
+              dateText = lines[j];
+              break;
+            }
+          }
+          
+          const startTime = parseSwissDate(dateText) || new Date('2025-09-15'); // Default date
+          
+          events.push({
+            source: 'ALPSABZUG',
+            sourceEventId: `${source.name}-${line.substring(0, 50)}-${startTime.getTime()}`,
+            title: line.trim(),
+            description: `Gefunden auf ${source.name}`,
+            lang: 'de', 
+            category: 'alpsabzug',
+            startTime,
+            country: 'CH',
+            url: source.url,
+            venueName: source.name
+          });
+          
+          console.log(`Found event: ${line.substring(0, 80)}...`);
+        }
+      }
+      
+      console.log(`Found ${foundEvents} Alpsabzug mentions on ${source.name}`);
+      return events;
     }
     
-    // Try to wait for event containers, but don't fail if they don't exist
-    try {
-      await page.waitForSelector(source.selectors.container, { timeout: 5000 });
-    } catch (e) {
-      console.log(`No events found with selector ${source.selectors.container} on ${source.name}`);
-      // Try alternative approach - look for any links with event keywords
-      const links = await page.$$('a');
-      console.log(`Found ${links.length} links to check for events`);
-      
-      for (const link of links.slice(0, 20)) { // Check first 20 links
-        try {
-          const text = await link.textContent();
+    // Original selector-based approach would go here if we had selectors
           if (text && await isAlpsabzugEvent(text)) {
             const href = await link.getAttribute('href');
             events.push({

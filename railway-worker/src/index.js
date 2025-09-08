@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const express = require('express');
 const { runAlpsabzugScraper } = require('./scraper');
+const { scrapeSimple } = require('./scraper-simple');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,7 +17,7 @@ app.get('/health', (req, res) => {
 app.post('/scrape', async (req, res) => {
   try {
     console.log('Manual scrape triggered via HTTP');
-    const result = await runAlpsabzugScraper();
+    const result = await scrapeSimple();
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('Manual scrape failed:', error);
@@ -31,8 +32,8 @@ app.listen(PORT, () => {
 
 // Run initial scrape after a delay to ensure DB connection
 setTimeout(() => {
-  console.log('Running initial scrape...');
-  runAlpsabzugScraper().catch(console.error);
+  console.log('Running initial scrape with simplified scraper...');
+  scrapeSimple().catch(console.error);
 }, 5000);
 
 // Schedule to run every day at 7 AM (1 hour after main scraper)
@@ -40,7 +41,7 @@ const schedule = process.env.CRON_SCHEDULE || '0 7 * * *';
 cron.schedule(schedule, async () => {
   console.log('Starting scheduled Alpsabzug scrape...');
   try {
-    await runAlpsabzugScraper();
+    await scrapeSimple();
   } catch (error) {
     console.error('Scheduled scrape failed:', error);
   }

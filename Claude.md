@@ -1,18 +1,47 @@
 # Swiss Activities Dashboard - Claude Code Instructions
 
-## Project Status: FULLY FUNCTIONAL ✅
-**Last Updated**: September 6, 2025
+## Project Status: PRODUCTION DEPLOYED ✅
+**Last Updated**: September 8, 2025
 
 ## Project Overview
 ✅ **COMPLETED**: Next.js dashboard aggregating events near Schlieren, ZH with daily + on-demand scraping from official Swiss sources.
 
-**Current Status**: Real-data only from active scrapers (no sample data), 200km coverage, English UI, advanced filtering
+**Current Status**: Production deployed on Vercel + Railway, real-data only, 200km coverage, English UI
 
-## API Key & Rate Limits
+## 🚀 DEPLOYMENT ARCHITECTURE
+
+### Vercel (Main App) - zurichactivities.vercel.app
+- Next.js 14 UI and API routes
+- Switzerland Tourism API scraper (working with opendata.myswitzerland.io)
+- Limmattal HTML scraper
+- NO Playwright dependencies (removed to fix build issues)
+- Uses yarn for package management
+
+### Railway (Worker Service) - alpsabzug-scraper
+- Playwright-based scraper for JavaScript-heavy sites
+- Runs in Docker container with full browser support
+- Scrapes Alpsabzug/Alpine cattle descent events
+- Daily cron at 7 AM + manual HTTP trigger
+- Shares same PostgreSQL database with Vercel
+
+### Database
+- PostgreSQL on Railway
+- Shared between Vercel and Railway worker
+- Connection via DATABASE_URL environment variable
+
+## 🔥 CRITICAL: Development & Testing Guidelines
+
+### DO NOT TEST LOCALLY
+- **Playwright does NOT work on macOS/Windows** without complex setup
+- **All Playwright testing happens on Railway** in production
+- **Vercel deployment uses yarn** (NOT npm) - package-lock.json warnings are expected
+
+### Known Working Configuration
 ```
-Switzerland Tourism API Key: (set ST_API_KEY env var; do not commit)
+Switzerland Tourism API Key: [REDACTED - See environment variables]
+Endpoint: https://opendata.myswitzerland.io/v1/attractions
 Header: x-api-key
-Limits: 1 req/s (10 req/s burst), 1000 req/day (provider dependent)
+Rate limit: 0.5 req/s (safe for production)
 ```
 
 ## Tech Stack
@@ -127,29 +156,33 @@ ST_LANG="de"                              # Optional
 ST_LIMIT="100"                            # Optional
 ```
 
-## Core Scrapers
+## Active Scrapers (September 2025)
 
-### 1. Switzerland Tourism API (`lib/scrapers/switzerland-tourism.ts`)
-- **Endpoint**: `https://api.myswitzerland.com/v1/events`
-- **Params**: `bbox` (Zurich region), `lang=de`, `limit=100`
-- **Rate limit**: 1 req/s
-- **Focus**: Official tourism events, festivals, Alpsabzug events
+### ✅ 1. Switzerland Tourism API (`lib/scrapers/switzerland-tourism.ts`) - VERCEL
+- **Status**: WORKING IN PRODUCTION
+- **Endpoint**: `https://opendata.myswitzerland.io/v1/attractions` 
+- **Auth**: x-api-key header with provided key
+- **Data**: Returns tourist attractions (treated as events)
+- **Rate limit**: 0.5 req/s
 
-### 2. Limmattal Regional (`lib/scrapers/limmattal.ts`)
+### ✅ 2. Limmattal Regional (`lib/scrapers/limmattal.ts`) - VERCEL
+- **Status**: WORKING (HTML scraping)
 - **URL**: `https://www.limmatstadt.ch/veranstaltungen`
-- **Method**: HTML scraping with Cheerio
-- **Focus**: Local Schlieren/Dietikon/Oetwil events
+- **Method**: Cheerio HTML parsing
+- **Focus**: Local Schlieren/Dietikon events
 
-### 3. Alpsabzug Events (`lib/scrapers/alpsabzug-scraper.ts`)
-- **URL**: `https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/`
-- **Method**: HTML scraping with post-filtering for Alpsabzug events
-- **Focus**: Traditional Alpine cattle descent events (Alpabzug, Désalpe, Viehscheid)
+### ✅ 3. Alpsabzug Events - RAILWAY WORKER ONLY
+- **Status**: DEPLOYED ON RAILWAY (separate service)
+- **Location**: `/railway-worker` directory
+- **Method**: Playwright browser automation
+- **URLs**: MySwitzerland, Graubünden, Appenzell search pages
+- **Note**: REMOVED from main app due to Vercel limitations
 
-### 4. Zurich Tourism (`lib/scrapers/zurich-tourism.ts`)
-Not currently invoked (previously sample-based). Will be enabled once a real scraper is implemented.
+### ❌ 4. Zurich Tourism - DISABLED
+- No real implementation yet
 
-### 5. Municipal Scraper (`lib/scrapers/municipal-scraper.ts`)
-Not currently invoked (previously sample-based). Will be enabled once real sources are integrated.
+### ❌ 5. Municipal Scraper - DISABLED  
+- No real implementation yet
 
 ## Key Functions
 
@@ -279,14 +312,35 @@ export const CATEGORIES = {
 7. ✅ **Filtering**: Categories, sources, municipalities, price, distance, search
 8. ✅ **Error Handling**: Comprehensive logging, health checks, graceful degradation
 
-## 🎯 CURRENT METRICS (Sept 2025)
-- **Events**: 77 combined from all sources → 64+ unique after deduplication
-- **Coverage**: 200km radius from Schlieren
-- **Alpsabzug**: 20+ traditional cattle descent events across Swiss Alps
-- **Cities**: 14 municipalities (Schlieren, Zürich, Basel, Bern, Lucerne, etc.)
-- **Sources**: Switzerland Tourism, Municipal, Zurich Tourism, Limmattal Regional
-- **Time Range**: September 2025 - December 2025
-- **UI Language**: Full English translation
+## 🎯 DEPLOYMENT & OPERATIONS (Sept 2025)
+
+### Vercel Deployment
+- **URL**: https://zurichactivities.vercel.app (or custom domain)
+- **Build**: `yarn install && yarn build` (uses Next.js)
+- **Environment Variables Required**:
+  ```
+  DATABASE_URL=<Railway PostgreSQL external URL>
+  ST_API_KEY=<Your Switzerland Tourism API key>
+  RAILWAY_WORKER_URL=https://alpsabzug-scraper.up.railway.app
+  SOURCES_ENABLED=LIMMATTAL,ST
+  ```
+
+### Railway Worker Deployment
+- **Service**: alpsabzug-scraper
+- **Root Directory**: `/railway-worker` (set in Railway settings)
+- **Build**: Docker (automatic from Dockerfile)
+- **Port**: 8080 (set automatically by Railway)
+- **Environment Variables Required**:
+  ```
+  DATABASE_URL=${{Postgres.DATABASE_URL}}  # Internal Railway connection
+  NOMINATIM_EMAIL=your_email@example.com
+  ```
+
+### Common Issues & Solutions
+1. **Vercel build fails with Playwright**: Already fixed - Playwright removed from main app
+2. **Railway Prisma crash**: Fixed with Prisma 5.22.0 and binary targets
+3. **Scraper selectors outdated**: Normal - websites change, update selectors in railway-worker
+4. **504 timeouts**: Increased Vercel timeout to 30s, Railway handles long-running scrapers
 
 ## Error Handling
 - Exponential backoff for failed requests
@@ -356,14 +410,32 @@ export const CATEGORIES = {
 - Removed all sample-data generation and disabled sample-based scrapers (ZURICH, MUNICIPAL, TEST, COMPREHENSIVE). Only real scrapers (ST, LIMMATTAL) run.
 - Added geocoding cache (Prisma model `GeocodeCache`) with optional TTL; Nominatim calls are throttled and cached.
 
-## TODO (Next Session)
-- Add Playwright-based scraper for Limmattal and extract schema.org JSON-LD for canonical links.
-- Verify Switzerland Tourism API endpoint and data model; adapt mapper accordingly.
-  - Provide `ST_EVENTS_URL` env once verified; then set `SOURCES_ENABLED=ST,LIMMATTAL`.
-- Re-enable Zurich/Municipal only with real scrapers (no sample data) and apply content filter.
-- Add “Family Weekend” preset (<=50km, categories: familie/kultur/festival) and enable pagination in `/api/events`.
-- Optional: move scraping to Railway worker if durations or rate limits exceed Vercel constraints.
-- Add server-side UI trigger or temporary SCRAPE_PUBLIC toggle documented for testing.
+## 🎯 COMPLETED TASKS (Sept 8, 2025)
+
+### ✅ Switzerland Tourism API
+- Fixed endpoint: `https://opendata.myswitzerland.io/v1/attractions`
+- Working with provided API key
+- Returns tourist attractions (used as events)
+
+### ✅ Playwright Deployment  
+- Moved to Railway worker service (Vercel doesn't support Playwright)
+- Created `/railway-worker` with Docker deployment
+- Removed all Playwright imports from main app
+- Fixed Prisma compatibility issues
+
+### ✅ Production Architecture
+- Vercel: UI + simple scrapers (ST, Limmattal)
+- Railway: Playwright scraper (Alpsabzug) + PostgreSQL
+- Both services share same database
+
+## ⚠️ REMEMBER FOR NEXT SESSION
+
+1. **DO NOT test Playwright locally** - Only works on Railway
+2. **DO NOT add Playwright to main app** - Vercel can't run it
+3. **Use yarn NOT npm** for Vercel (package-lock.json warnings are normal)
+4. **ST API is WORKING** - Don't change the endpoint again
+5. **Railway needs root directory** `/railway-worker` in settings
+6. **Both services are SEPARATE** - Different repos in same GitHub
 
 ## Admin Token Setup
 - Set `SCRAPE_TOKEN` in Vercel env to a long random string (32–64 chars). Examples to generate locally:
