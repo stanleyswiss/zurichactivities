@@ -3,18 +3,19 @@ const { PrismaClient } = require('@prisma/client');
 const crypto = require('crypto');
 require('dotenv').config();
 
-const prisma = new PrismaClient({
-  datasourceUrl: process.env.DATABASE_URL,
-  log: ['error', 'warn']
-});
+// Initialize Prisma with minimal configuration
+let prisma;
 
-// Test database connection
-prisma.$connect()
-  .then(() => console.log('Database connected successfully'))
-  .catch(err => {
-    console.error('Database connection failed:', err);
-    console.error('DATABASE_URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
+try {
+  prisma = new PrismaClient({
+    log: ['error', 'warn']
   });
+  console.log('Prisma client initialized');
+} catch (err) {
+  console.error('Failed to initialize Prisma client:', err);
+  console.error('DATABASE_URL:', process.env.DATABASE_URL ? 'Set (length: ' + process.env.DATABASE_URL.length + ')' : 'Not set');
+  process.exit(1);
+}
 
 // Alpsabzug-specific terms for filtering
 const ALPSABZUG_TERMS = [
