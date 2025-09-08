@@ -8,14 +8,17 @@ const prisma = new PrismaClient({
   log: ['error', 'warn']
 });
 
-// MySwitzerland-specific event scraper with proper data extraction
-class MySwitzerlandEventScraper {
+// Comprehensive MySwitzerland event scraper for all categories
+class ComprehensiveMySwitzerlandScraper {
   constructor() {
     this.baseUrl = 'https://www.myswitzerland.com';
+    this.schlierenLat = 47.396;
+    this.schlierenLon = 8.447;
+    this.maxDistanceKm = 200;
   }
 
-  async scrapeAlpsabzugEvents() {
-    console.log('Starting MySwitzerland Alpsabzug scraper...');
+  async scrapeAllEvents() {
+    console.log('Starting Comprehensive MySwitzerland scraper...');
     
     const browser = await chromium.launch({
       headless: true,
@@ -28,43 +31,101 @@ class MySwitzerlandEventScraper {
       });
 
       const page = await context.newPage();
-      const events = [];
+      const allEvents = [];
 
-      // Search for Alpsabzug events
-      const searchUrl = 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/?rubrik=alpabzuegeaelplerfeste';
-      console.log('Loading MySwitzerland Alpsabzug search page...');
+      // Define all event categories to scrape
+      const eventCategories = [
+        {
+          name: 'Festivals',
+          url: 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/?rubrik=festivals',
+          category: 'festival'
+        },
+        {
+          name: 'Markets',
+          url: 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/?rubrik=maerkte',
+          category: 'markt'
+        },
+        {
+          name: 'Culture',
+          url: 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/?rubrik=kultur',
+          category: 'kultur'
+        },
+        {
+          name: 'Music',
+          url: 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/?rubrik=musik',
+          category: 'musik'
+        },
+        {
+          name: 'Family',
+          url: 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/?rubrik=familie',
+          category: 'familie'
+        },
+        {
+          name: 'Sports',
+          url: 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/?rubrik=sport',
+          category: 'sport'
+        },
+        {
+          name: 'Alpsabzug',
+          url: 'https://www.myswitzerland.com/de-ch/erlebnisse/veranstaltungen/veranstaltungen-suche/?rubrik=alpabzuegeaelplerfeste',
+          category: 'alpsabzug'
+        }
+      ];
+
+      // Scrape each category
+      for (const eventCategory of eventCategories) {
+        console.log(`\n=== Scraping ${eventCategory.name} Events ===`);
+        
+        try {
+          const categoryEvents = await this.scrapeCategoryEvents(page, eventCategory);
+          allEvents.push(...categoryEvents);
+          
+          console.log(`✓ Found ${categoryEvents.length} ${eventCategory.name} events`);
+          
+          // Delay between categories to be respectful
+          await page.waitForTimeout(3000);
+          
+        } catch (error) {
+          console.error(`Error scraping ${eventCategory.name}:`, error.message);
+        }
+      }
+
+      await context.close();
+
+      // Filter events by distance from Schlieren
+      const nearbyEvents = this.filterEventsByDistance(allEvents);
+      console.log(`\n✓ Found ${nearbyEvents.length} events within ${this.maxDistanceKm}km of Schlieren`);
+
+      return nearbyEvents;
+
+    } finally {
+      await browser.close();
+    }
+  }
+
+  async scrapeCategoryEvents(page, eventCategory) {
+    const events = [];
+
+    try {
+      console.log(`Loading ${eventCategory.name} search page...`);
       
-      await page.goto(searchUrl, { 
+      await page.goto(eventCategory.url, { 
         waitUntil: 'networkidle', 
-        timeout: 60000 // Increased from 30s to 60s
+        timeout: 60000 
       });
       
-      // Wait for content to load with multiple strategies
+      // Wait for content to load
       try {
-        // Wait for event containers to appear
         await page.waitForSelector('.event, .veranstaltung, [class*="event"], article', { timeout: 10000 });
       } catch (error) {
         console.log('Event containers not found, waiting for general content...');
         await page.waitForTimeout(5000);
       }
 
-      // Check for "Load More" or pagination buttons and click them
-      try {
-        // Try to load all results by clicking "Show More" or similar buttons
-        let loadMoreButton = await page.$('.load-more, [data-load-more], .show-more, .mehr-anzeigen');
-        let clicks = 0;
-        while (loadMoreButton && clicks < 5) { // Max 5 clicks to prevent infinite loops
-          console.log('Found "Load More" button, clicking...');
-          await loadMoreButton.click();
-          await page.waitForTimeout(2000);
-          loadMoreButton = await page.$('.load-more, [data-load-more], .show-more, .mehr-anzeigen');
-          clicks++;
-        }
-      } catch (error) {
-        console.log('No pagination found or error clicking:', error.message);
-      }
+      // Load more results by clicking pagination
+      await this.loadAllResults(page);
 
-      // Find event links (now after loading all content)
+      // Find event links
       const eventLinks = await page.evaluate(() => {
         const links = Array.from(document.querySelectorAll('a[href*="/veranstaltungen/"], a[href*="/event"]'));
         return links
@@ -72,65 +133,22 @@ class MySwitzerlandEventScraper {
             href: link.href,
             title: link.textContent?.trim() || ''
           }))
-          .filter(link => 
-            link.title.toLowerCase().includes('alpabzug') ||
-            link.title.toLowerCase().includes('alpsabzug') ||
-            link.title.toLowerCase().includes('désalpe') ||
-            link.title.toLowerCase().includes('desalpe') ||
-            link.href.includes('alpabzug') ||
-            link.href.includes('alpsabzug')
-          );
+          .filter(link => link.title && link.title.length > 5)
+          .slice(0, 30); // Limit per category to prevent overwhelming
       });
 
-      console.log(`Found ${eventLinks.length} potential Alpsabzug event links`);
+      console.log(`Found ${eventLinks.length} event links for ${eventCategory.name}`);
 
       // Visit each event page to extract detailed data
-      for (const eventLink of eventLinks.slice(0, 50)) { // Increased limit to 50 events
+      for (const eventLink of eventLinks) {
         try {
-          console.log(`Scraping event: ${eventLink.title}`);
+          await page.waitForTimeout(1000); // Rate limiting
           
-          // Enhanced page loading with retry logic
-          let retries = 0;
-          const maxRetries = 3;
-          let pageLoaded = false;
-          
-          while (!pageLoaded && retries < maxRetries) {
-            try {
-              await page.goto(eventLink.href, { 
-                waitUntil: 'networkidle', 
-                timeout: 60000 
-              });
-              
-              // Wait for specific content to indicate page is ready
-              try {
-                await page.waitForSelector('h1, .title, .event-title, [class*="title"]', { timeout: 10000 });
-                pageLoaded = true;
-              } catch (error) {
-                console.log('Title not found, waiting for general content...');
-                await page.waitForTimeout(3000);
-                pageLoaded = true; // Continue anyway
-              }
-              
-            } catch (error) {
-              retries++;
-              console.log(`Page load attempt ${retries} failed for ${eventLink.href}: ${error.message}`);
-              if (retries < maxRetries) {
-                await page.waitForTimeout(5000); // Wait before retry
-              }
-            }
-          }
-          
-          if (!pageLoaded) {
-            console.log(`⚠ Skipping ${eventLink.href} after ${maxRetries} failed attempts`);
-            continue;
-          }
-
-          // Extract JSON-LD structured data
-          const eventData = await this.extractEventData(page, eventLink.href);
+          const eventData = await this.extractEventDataFromPage(page, eventLink, eventCategory);
           
           if (eventData) {
             events.push(eventData);
-            console.log(`✓ Extracted: ${eventData.title} on ${eventData.startTime.toLocaleDateString()}`);
+            console.log(`✓ Extracted: ${eventData.title.substring(0, 50)}...`);
           }
 
         } catch (error) {
@@ -138,15 +156,69 @@ class MySwitzerlandEventScraper {
         }
       }
 
-      await context.close();
-      return events;
+    } catch (error) {
+      console.error(`Error in scrapeCategoryEvents for ${eventCategory.name}:`, error.message);
+    }
 
-    } finally {
-      await browser.close();
+    return events;
+  }
+
+  async loadAllResults(page) {
+    try {
+      let loadMoreButton = await page.$('.load-more, [data-load-more], .show-more, .mehr-anzeigen');
+      let clicks = 0;
+      
+      while (loadMoreButton && clicks < 3) { // Max 3 clicks to prevent infinite loops
+        console.log('Found "Load More" button, clicking...');
+        await loadMoreButton.click();
+        await page.waitForTimeout(3000);
+        loadMoreButton = await page.$('.load-more, [data-load-more], .show-more, .mehr-anzeigen');
+        clicks++;
+      }
+    } catch (error) {
+      console.log('No pagination found or error clicking:', error.message);
     }
   }
 
-  async extractEventData(page, url) {
+  async extractEventDataFromPage(page, eventLink, eventCategory) {
+    // Enhanced page loading with retry logic
+    let retries = 0;
+    const maxRetries = 2;
+    let pageLoaded = false;
+    
+    while (!pageLoaded && retries < maxRetries) {
+      try {
+        await page.goto(eventLink.href, { 
+          waitUntil: 'networkidle', 
+          timeout: 45000 // Slightly shorter timeout per page
+        });
+        
+        try {
+          await page.waitForSelector('h1, .title, .event-title, [class*="title"]', { timeout: 8000 });
+          pageLoaded = true;
+        } catch (error) {
+          await page.waitForTimeout(2000);
+          pageLoaded = true; // Continue anyway
+        }
+        
+      } catch (error) {
+        retries++;
+        console.log(`Page load attempt ${retries} failed: ${error.message}`);
+        if (retries < maxRetries) {
+          await page.waitForTimeout(3000);
+        }
+      }
+    }
+    
+    if (!pageLoaded) {
+      console.log(`⚠ Skipping ${eventLink.href} after failed attempts`);
+      return null;
+    }
+
+    return await this.extractEventData(page, eventLink.href, eventCategory);
+  }
+
+  async extractEventData(page, url, eventCategory) {
     try {
       // First try JSON-LD extraction
       const jsonLdData = await page.evaluate(() => {
@@ -169,13 +241,12 @@ class MySwitzerlandEventScraper {
         }
       }
 
-      let title, startTime, endTime, location, description, venueName;
+      let title, startTime, endTime, location, description, venueName, imageUrl;
 
       if (eventStructuredData) {
         // Extract from JSON-LD
         title = eventStructuredData.name || eventStructuredData.title || '';
         
-        // Parse dates from JSON-LD
         if (eventStructuredData.startDate) {
           startTime = new Date(eventStructuredData.startDate);
         }
@@ -183,7 +254,6 @@ class MySwitzerlandEventScraper {
           endTime = new Date(eventStructuredData.endDate);
         }
 
-        // Extract location
         if (eventStructuredData.location) {
           if (typeof eventStructuredData.location === 'string') {
             venueName = eventStructuredData.location;
@@ -195,6 +265,7 @@ class MySwitzerlandEventScraper {
         }
 
         description = eventStructuredData.description || '';
+        imageUrl = eventStructuredData.image?.url || eventStructuredData.image;
       }
 
       // Fallback to HTML extraction if no structured data
@@ -205,21 +276,23 @@ class MySwitzerlandEventScraper {
           const timeElement = document.querySelector('.time, .event-time, [class*="time"]');
           const locationElement = document.querySelector('.location, .event-location, [class*="location"]');
           const descElement = document.querySelector('.description, .event-description, .content');
+          const imgElement = document.querySelector('img[src*="event"], .event-image img, .hero-image img');
 
           return {
             title: titleElement?.textContent?.trim() || '',
             dateText: dateElement?.textContent?.trim() || '',
             timeText: timeElement?.textContent?.trim() || '',
             locationText: locationElement?.textContent?.trim() || '',
-            descriptionText: descElement?.textContent?.trim() || ''
+            descriptionText: descElement?.textContent?.trim() || '',
+            imageUrl: imgElement?.src || ''
           };
         });
 
         title = title || htmlData.title;
         description = description || htmlData.descriptionText;
         venueName = venueName || htmlData.locationText;
+        imageUrl = imageUrl || htmlData.imageUrl;
 
-        // Parse Swiss date formats if not found in JSON-LD
         if (!startTime && htmlData.dateText) {
           startTime = this.parseSwissDate(htmlData.dateText);
         }
@@ -229,7 +302,6 @@ class MySwitzerlandEventScraper {
       let lat, lon, city, street, postalCode;
       if (venueName) {
         try {
-          // Parse Swiss address components
           const addressParts = venueName.split(',').map(part => part.trim());
           
           // Try to identify postal code and city
@@ -242,21 +314,18 @@ class MySwitzerlandEventScraper {
             }
           }
           
-          // If no postal code found, use first part as city
           if (!city && addressParts.length > 0) {
-            city = addressParts[addressParts.length - 1]; // Last part is usually city
+            city = addressParts[addressParts.length - 1];
             if (addressParts.length > 1) {
               street = addressParts.slice(0, -1).join(', ');
             }
           }
           
-          // Geocode the full address
           const coords = await this.geocodeAddress(venueName);
           if (coords) {
             lat = coords.lat;
             lon = coords.lon;
           } else if (city) {
-            // Fallback: geocode just the city
             const cityCoords = await this.geocodeAddress(city + ', Switzerland');
             if (cityCoords) {
               lat = cityCoords.lat;
@@ -271,23 +340,21 @@ class MySwitzerlandEventScraper {
 
       // Skip events without valid data
       if (!title || !startTime) {
-        console.log(`⚠ Skipping event - missing title or date`);
         return null;
       }
 
-      // Skip events that are clearly not Alpsabzug
-      if (!this.isAlpsabzugEvent(title, description)) {
-        console.log(`⚠ Skipping non-Alpsabzug event: ${title}`);
+      // Apply content filter to exclude administrative events
+      if (this.shouldExcludeEvent(title, description)) {
         return null;
       }
 
       return {
-        source: 'ALPSABZUG',
+        source: 'MYSWITZERLAND',
         sourceEventId: this.generateEventId(url, title, startTime),
         title: title.substring(0, 200),
-        description: description?.substring(0, 500) || `Alpsabzug event from MySwitzerland: ${title}`,
+        description: description?.substring(0, 500) || `${eventCategory.name} event from MySwitzerland`,
         lang: 'de',
-        category: 'alpsabzug',
+        category: eventCategory.category,
         startTime,
         endTime: endTime || undefined,
         venueName: venueName?.substring(0, 200) || undefined,
@@ -297,7 +364,8 @@ class MySwitzerlandEventScraper {
         country: 'CH',
         lat: lat || undefined,
         lon: lon || undefined,
-        url: url
+        url: url,
+        imageUrl: imageUrl || undefined
       };
 
     } catch (error) {
@@ -306,18 +374,25 @@ class MySwitzerlandEventScraper {
     }
   }
 
+  shouldExcludeEvent(title, description) {
+    const text = `${title} ${description || ''}`.toLowerCase();
+    const excludeTerms = [
+      'gemeindeversammlung', 'wahlen', 'abstimmung', 'verwaltung',
+      'stadtrat', 'gemeinderatssitzung', 'budget', 'rechnung',
+      'bürgerversammlung', 'politisch', 'administrativ'
+    ];
+    
+    return excludeTerms.some(term => text.includes(term));
+  }
+
   parseSwissDate(dateText) {
     if (!dateText) return null;
 
     const cleaned = dateText.trim().toLowerCase();
     
-    // Swiss date patterns
     const patterns = [
-      // Saturday 20. September 2025
       /(\w+)\s+(\d{1,2})\.\s*(\w+)\s+(\d{4})/,
-      // 20.09.2025
       /(\d{1,2})\.(\d{1,2})\.(\d{4})/,
-      // 20. September 2025
       /(\d{1,2})\.\s*(\w+)\s+(\d{4})/
     ];
 
@@ -331,7 +406,6 @@ class MySwitzerlandEventScraper {
       if (match) {
         try {
           if (match.length === 5) {
-            // Format with weekday: Saturday 20. September 2025
             const day = parseInt(match[2]);
             const monthName = match[3];
             const year = parseInt(match[4]);
@@ -342,13 +416,11 @@ class MySwitzerlandEventScraper {
             }
           } else if (match.length === 4) {
             if (match[2].match(/\d+/)) {
-              // Format: 20.09.2025
               const day = parseInt(match[1]);
               const month = parseInt(match[2]) - 1;
               const year = parseInt(match[3]);
               return new Date(year, month, day);
             } else {
-              // Format: 20. September 2025
               const day = parseInt(match[1]);
               const monthName = match[2];
               const year = parseInt(match[3]);
@@ -368,20 +440,6 @@ class MySwitzerlandEventScraper {
     return null;
   }
 
-  isAlpsabzugEvent(title, description = '') {
-    const text = `${title} ${description}`.toLowerCase();
-    const alpsabzugTerms = [
-      'alpabzug', 'alpsabzug', 'alpabfahrt', 'alpsabfahrt',
-      'viehscheid', 'viehschied', 'désalpe', 'desalpe', 'cattle descent',
-      'älplerfest', 'alpfest', 'sennen', 'sennerei',
-      'alpaufzug', 'alpauftrieb', 'inalpe', 'monté à l\'alpage',
-      'transhumance', 'almabtrieb', 'decorated cows', 'geschmückte kühe',
-      'vaches décorées', 'bergbauern', 'alpwirtschaft', 'alpweide'
-    ];
-    
-    return alpsabzugTerms.some(term => text.includes(term));
-  }
-
   async geocodeAddress(address) {
     try {
       const email = process.env.NOMINATIM_EMAIL || 'activities@example.com';
@@ -393,7 +451,7 @@ class MySwitzerlandEventScraper {
       
       const response = await fetch(url.toString(), {
         headers: {
-          'User-Agent': `SwissActivitiesDashboard/1.0 (${email})`
+          'User-Agent': `SwissActivitiesDashboard/2.0 (${email})`
         }
       });
       
@@ -401,6 +459,9 @@ class MySwitzerlandEventScraper {
       
       const data = await response.json();
       if (data && data[0]) {
+        // Rate limiting for Nominatim
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         return {
           lat: parseFloat(data[0].lat),
           lon: parseFloat(data[0].lon)
@@ -410,6 +471,40 @@ class MySwitzerlandEventScraper {
       console.error('Geocoding error:', error);
     }
     return null;
+  }
+
+  filterEventsByDistance(events) {
+    return events.filter(event => {
+      if (!event.lat || !event.lon) {
+        return true; // Keep events without coordinates (they might be important)
+      }
+      
+      const distance = this.calculateDistance(
+        this.schlierenLat, 
+        this.schlierenLon, 
+        event.lat, 
+        event.lon
+      );
+      
+      return distance <= this.maxDistanceKm;
+    });
+  }
+
+  calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = this.toRadians(lat2 - lat1);
+    const dLon = this.toRadians(lon2 - lon1);
+    
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+              
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  toRadians(degrees) {
+    return degrees * (Math.PI / 180);
   }
 
   generateEventId(url, title, startTime) {
@@ -437,7 +532,13 @@ class MySwitzerlandEventScraper {
             description: event.description,
             endTime: event.endTime,
             venueName: event.venueName,
+            street: event.street,
+            postalCode: event.postalCode,
+            city: event.city,
+            lat: event.lat,
+            lon: event.lon,
             url: event.url,
+            imageUrl: event.imageUrl,
             updatedAt: new Date()
           },
           create: {
@@ -453,35 +554,34 @@ class MySwitzerlandEventScraper {
       }
     }
 
-    console.log(`✓ MySwitzerland scraper saved ${saved} events`);
+    console.log(`✓ Comprehensive MySwitzerland scraper saved ${saved} events`);
     return { eventsFound: events.length, eventsSaved: saved };
   }
 }
 
-// Export for use in main scraper
-const mySwitzerlandScraper = new MySwitzerlandEventScraper();
+const comprehensiveScraper = new ComprehensiveMySwitzerlandScraper();
 
-async function runMySwitzerlandScraper() {
+async function runComprehensiveMySwitzerlandScraper() {
   try {
-    const events = await mySwitzerlandScraper.scrapeAlpsabzugEvents();
-    return await mySwitzerlandScraper.saveEvents(events);
+    const events = await comprehensiveScraper.scrapeAllEvents();
+    return await comprehensiveScraper.saveEvents(events);
   } catch (error) {
-    console.error('MySwitzerland scraper failed:', error);
+    console.error('Comprehensive MySwitzerland scraper failed:', error);
     return { eventsFound: 0, eventsSaved: 0 };
   }
 }
 
-module.exports = { runMySwitzerlandScraper, MySwitzerlandEventScraper };
+module.exports = { runComprehensiveMySwitzerlandScraper, ComprehensiveMySwitzerlandScraper };
 
 // Run if called directly
 if (require.main === module) {
-  runMySwitzerlandScraper()
+  runComprehensiveMySwitzerlandScraper()
     .then(result => {
-      console.log('MySwitzerland scraping complete:', result);
+      console.log('Comprehensive MySwitzerland scraping complete:', result);
       process.exit(0);
     })
     .catch(error => {
-      console.error('MySwitzerland scraping failed:', error);
+      console.error('Comprehensive MySwitzerland scraping failed:', error);
       process.exit(1);
     });
 }

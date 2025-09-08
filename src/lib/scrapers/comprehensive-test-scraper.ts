@@ -4,22 +4,40 @@ import { LimmattalScraper } from './limmattal';
 import { MunicipalScraper } from './municipal-scraper';
 import { ZurichTourismScraper } from './zurich-tourism';
 import { TestScraper } from './test-scraper';
+import { RailwayProxyScraper } from './railway-proxy';
 
 export class ComprehensiveTestScraper {
   async scrapeEvents(): Promise<RawEvent[]> {
     console.log('Running comprehensive scraper - combining all sources...');
     const allEvents: RawEvent[] = [];
     
-    // Run all real scrapers
-    const scrapers = [
-      { name: 'Switzerland Tourism', scraper: new SwitzerlandTourismScraper() },
-      { name: 'Limmattal Regional', scraper: new LimmattalScraper() },
-      { name: 'Municipal', scraper: new MunicipalScraper() },
-      { name: 'Zurich Tourism', scraper: new ZurichTourismScraper() },
-      { name: 'Test Data', scraper: new TestScraper() } // Keep test data for now until real APIs work
+    // Trigger Railway workers for comprehensive scraping (they save directly to DB)
+    const railwayProxy = new RailwayProxyScraper();
+    
+    // Trigger all Railway scrapers in background (non-blocking)
+    const railwayPromises = [
+      railwayProxy.triggerComprehensiveMySwitzerlandScraper().catch(error => {
+        console.error('Railway Comprehensive MySwitzerland error:', error);
+        return { eventsFound: 0, eventsSaved: 0 };
+      }),
+      railwayProxy.triggerMunicipalScraper().catch(error => {
+        console.error('Railway Municipal error:', error);
+        return { eventsFound: 0, eventsSaved: 0 };
+      })
     ];
 
-    for (const { name, scraper } of scrapers) {
+    // Also run local Vercel-compatible scrapers
+    const localScrapers = [
+      { name: 'Switzerland Tourism (Vercel)', scraper: new SwitzerlandTourismScraper() },
+      { name: 'Limmattal Regional (Vercel)', scraper: new LimmattalScraper() }
+      // Note: Disabled sample-based scrapers as per requirements
+      // { name: 'Municipal (Sample)', scraper: new MunicipalScraper() },
+      // { name: 'Zurich Tourism (Sample)', scraper: new ZurichTourismScraper() },
+      // { name: 'Test Data', scraper: new TestScraper() }
+    ];
+
+    // Run local scrapers
+    for (const { name, scraper } of localScrapers) {
       try {
         console.log(`Running ${name} scraper...`);
         const events = await scraper.scrapeEvents();
@@ -28,6 +46,15 @@ export class ComprehensiveTestScraper {
       } catch (error) {
         console.error(`Error running ${name} scraper:`, error);
       }
+    }
+
+    // Wait for Railway scraper confirmations (but don't block on full completion)
+    try {
+      const railwayResults = await Promise.all(railwayPromises);
+      const totalRailwayEvents = railwayResults.reduce((sum, result) => sum + result.eventsFound, 0);
+      console.log(`Railway scrapers triggered: ${totalRailwayEvents} events expected to be scraped in background`);
+    } catch (error) {
+      console.error('Railway scraper coordination error:', error);
     }
 
     // Add some additional comprehensive test events to make the dataset richer

@@ -400,6 +400,18 @@ export class SwitzerlandTourismScraper {
       }
     }
 
+    // Extract city from address if coordinates available
+    let city: string | undefined;
+    if (lat && lon) {
+      try {
+        // Try to reverse geocode to get city name
+        const reverseGeocode = await this.reverseGeocodeSwiss(lat, lon);
+        city = reverseGeocode?.city;
+      } catch (error) {
+        console.log('Reverse geocoding failed:', error);
+      }
+    }
+
     return {
       source: SOURCES.ST,
       sourceEventId: node.identifier || url,
@@ -409,10 +421,10 @@ export class SwitzerlandTourismScraper {
       category,
       startTime: new Date(), // treat as currently available activity
       endTime: undefined,
-      venueName: undefined,
+      venueName: title, // Use title as venue for attractions
       street: undefined,
       postalCode: undefined,
-      city: undefined,
+      city: city || undefined,
       country: 'CH',
       lat,
       lon,
@@ -531,6 +543,36 @@ export class SwitzerlandTourismScraper {
       url,
       imageUrl
     };
+  }
+
+  private async reverseGeocodeSwiss(lat: number, lon: number): Promise<{ city?: string } | null> {
+    try {
+      const email = process.env.NOMINATIM_EMAIL || 'activities@example.com';
+      const url = new URL('https://nominatim.openstreetmap.org/reverse');
+      url.searchParams.append('lat', lat.toString());
+      url.searchParams.append('lon', lon.toString());
+      url.searchParams.append('format', 'json');
+      url.searchParams.append('addressdetails', '1');
+      
+      const response = await fetch(url.toString(), {
+        headers: {
+          'User-Agent': `SwissActivitiesDashboard/2.0 (${email})`
+        }
+      });
+      
+      if (!response.ok) return null;
+      
+      const data = await response.json();
+      
+      // Extract city from address components
+      const address = data.address || {};
+      const city = address.city || address.town || address.village || address.municipality;
+      
+      return city ? { city } : null;
+    } catch (error) {
+      console.error('Reverse geocoding error:', error);
+      return null;
+    }
   }
 
   private mapCategory(category?: string): string | undefined {

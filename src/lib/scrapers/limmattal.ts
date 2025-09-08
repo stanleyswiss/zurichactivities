@@ -148,16 +148,44 @@ export class LimmattalScraper {
     const startTime = this.parseDateTime(dateStr, timeStr);
     if (!startTime) return null;
 
-    // Try to extract location info
+    // Enhanced location extraction
     const locationText = venue || element.text();
-    const locationMatch = locationText.match(/(\d{4}\s+\w+)/); // Swiss postal code pattern
-    const city = locationMatch ? locationMatch[1] : this.inferCity(locationText);
-
+    const postalMatch = locationText.match(/(\d{4})\s+([A-Za-z\s]+)/); // Swiss postal code pattern
+    
+    let city: string | undefined;
+    let postalCode: string | undefined;
+    let street: string | undefined;
     let lat: number | undefined;
     let lon: number | undefined;
 
+    if (postalMatch) {
+      postalCode = postalMatch[1];
+      city = postalMatch[2].trim();
+    } else {
+      city = this.inferCity(locationText);
+    }
+
+    // Try to extract street from venue if available
+    if (venue && venue.includes(',')) {
+      const parts = venue.split(',').map(p => p.trim());
+      if (parts.length >= 2) {
+        street = parts[0];
+        // Look for postal code in remaining parts
+        for (let i = 1; i < parts.length; i++) {
+          const match = parts[i].match(/(\d{4})\s+(.+)/);
+          if (match) {
+            postalCode = match[1];
+            city = match[2];
+            break;
+          }
+        }
+      }
+    }
+
+    // Geocode with full address if available
     if (city) {
-      const coords = await geocodeAddress(city);
+      const fullAddress = formatSwissAddress(street, postalCode, city);
+      const coords = await geocodeAddress(fullAddress);
       if (coords) {
         lat = coords.lat;
         lon = coords.lon;
@@ -173,7 +201,9 @@ export class LimmattalScraper {
       category: this.inferCategory(title, description),
       startTime,
       venueName: venue,
-      city: city,
+      street,
+      postalCode,
+      city,
       country: 'CH',
       lat,
       lon,

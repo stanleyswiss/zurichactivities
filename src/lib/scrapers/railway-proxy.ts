@@ -48,22 +48,33 @@ export class RailwayProxyScraper {
     }
   }
 
+  async triggerComprehensiveMySwitzerlandScraper(): Promise<{ eventsFound: number; eventsSaved: number }> {
+    return await this.scrapeWithType('comprehensive-myswitzerland');
+  }
+
+  async triggerMunicipalScraper(): Promise<{ eventsFound: number; eventsSaved: number }> {
+    return await this.scrapeWithType('municipal');
+  }
+
   async triggerAllRailwayScrapers(): Promise<{ eventsFound: number; eventsSaved: number }> {
+    return await this.scrapeWithType('comprehensive');
+  }
+
+  private async scrapeWithType(scraperType: string): Promise<{ eventsFound: number; eventsSaved: number }> {
     if (!this.railwayUrl) {
       console.error('RAILWAY_WORKER_URL not configured');
       return { eventsFound: 0, eventsSaved: 0 };
     }
 
     try {
-      console.log('Triggering Railway comprehensive scraping (async)...');
+      console.log(`Triggering Railway ${scraperType} scraping (async)...`);
       
-      // Trigger comprehensive scraping but don't wait for full completion
       const response = await fetch(`${this.railwayUrl}/scrape`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ type: 'comprehensive', async: true }),
+        body: JSON.stringify({ type: scraperType, async: true }),
         signal: AbortSignal.timeout(15000), // 15 second timeout - just to confirm it starts
       });
 
@@ -73,17 +84,15 @@ export class RailwayProxyScraper {
       }
 
       const result = await response.json();
-      console.log('Railway comprehensive scraping started successfully');
+      console.log(`Railway ${scraperType} scraping started successfully`);
       
       // Since we're doing async scraping, return estimated counts
-      // The actual scraping continues in the background on Railway
       return { 
-        eventsFound: result.totalEventsFound || 0, 
-        eventsSaved: result.totalEventsSaved || 0 
+        eventsFound: result.totalEventsFound || result.eventsFound || 0, 
+        eventsSaved: result.totalEventsSaved || result.eventsSaved || 0 
       };
     } catch (error) {
-      console.error('Railway comprehensive scraper error:', error);
-      // Return 0 but don't fail - Railway might still be scraping in background
+      console.error(`Railway ${scraperType} scraper error:`, error);
       return { eventsFound: 0, eventsSaved: 0 };
     }
   }
