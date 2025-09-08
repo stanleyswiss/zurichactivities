@@ -180,6 +180,22 @@ class MySwitzerlandEventScraper {
         }
       }
 
+      // Geocode the venue/location to get coordinates for distance calculation
+      let lat, lon, city;
+      if (venueName) {
+        try {
+          const coords = await this.geocodeAddress(venueName);
+          if (coords) {
+            lat = coords.lat;
+            lon = coords.lon;
+          }
+          // Extract city from venue name
+          city = venueName.split(',')[0].trim();
+        } catch (error) {
+          console.log(`Geocoding failed for ${venueName}:`, error.message);
+        }
+      }
+
       // Skip events without valid data
       if (!title || !startTime) {
         console.log(`⚠ Skipping event - missing title or date`);
@@ -202,7 +218,10 @@ class MySwitzerlandEventScraper {
         startTime,
         endTime: endTime || undefined,
         venueName: venueName?.substring(0, 200) || undefined,
+        city: city || undefined,
         country: 'CH',
+        lat: lat || undefined,
+        lon: lon || undefined,
         url: url
       };
 
@@ -286,6 +305,36 @@ class MySwitzerlandEventScraper {
     ];
     
     return alpsabzugTerms.some(term => text.includes(term));
+  }
+
+  async geocodeAddress(address) {
+    try {
+      const email = process.env.NOMINATIM_EMAIL || 'activities@example.com';
+      const url = new URL('https://nominatim.openstreetmap.org/search');
+      url.searchParams.append('q', address + ', Switzerland');
+      url.searchParams.append('format', 'json');
+      url.searchParams.append('limit', '1');
+      url.searchParams.append('countrycodes', 'ch');
+      
+      const response = await fetch(url.toString(), {
+        headers: {
+          'User-Agent': `SwissActivitiesDashboard/1.0 (${email})`
+        }
+      });
+      
+      if (!response.ok) return null;
+      
+      const data = await response.json();
+      if (data && data[0]) {
+        return {
+          lat: parseFloat(data[0].lat),
+          lon: parseFloat(data[0].lon)
+        };
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+    }
+    return null;
   }
 
   generateEventId(url, title, startTime) {

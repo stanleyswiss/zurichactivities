@@ -81,13 +81,17 @@ app.post('/scrape', async (req, res) => {
           results.fallback = { error: e.message };
         }
         
-        // Combine results
-        const totalFound = (results.structured?.eventsFound || 0) + 
+        // Combine results (include MySwitzerland!)
+        const totalFound = (results.myswitzerland?.eventsFound || 0) +
+                          (results.structured?.eventsFound || 0) + 
                           (results.advanced?.eventsFound || 0) + 
                           (results.fallback?.eventsFound || 0);
-        const totalSaved = (results.structured?.eventsSaved || 0) + 
+        const totalSaved = (results.myswitzerland?.eventsSaved || 0) +
+                          (results.structured?.eventsSaved || 0) + 
                           (results.advanced?.eventsSaved || 0) + 
                           (results.fallback?.eventsSaved || 0);
+                          
+        console.log(`Comprehensive scraping complete: ${totalFound} found, ${totalSaved} saved`);
         
         result = {
           comprehensive: true,
@@ -103,7 +107,12 @@ app.post('/scrape', async (req, res) => {
     res.json({ success: true, scraperType, ...result });
   } catch (error) {
     console.error('Manual scrape failed:', error);
-    res.status(500).json({ error: 'Scrape failed', details: error.message });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Scrape failed', 
+      details: error.message,
+      scraperType: scraperType || 'unknown'
+    });
   }
 });
 
