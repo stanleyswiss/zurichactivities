@@ -231,8 +231,10 @@ setTimeout(() => {
   });
 }, 5000);
 
-// Schedule to run every day at 7 AM (1 hour after main scraper)
+// DISABLED: Cron scheduling disabled - Railway scrapers should not run automatically
+// Only manual triggers via HTTP POST /scrape endpoint are allowed
 const schedule = process.env.CRON_SCHEDULE || '0 7 * * *';
+/* CRON DISABLED - Use MySwitzerland API instead
 cron.schedule(schedule, async () => {
   console.log('Starting scheduled comprehensive Swiss events scrape...');
   
@@ -276,6 +278,7 @@ cron.schedule(schedule, async () => {
     }
   }
 });
+*/ // END CRON DISABLED
 
 // Keep the process alive
 process.on('SIGTERM', () => {
