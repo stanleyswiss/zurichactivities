@@ -276,7 +276,8 @@ export class LimmattalScraper {
   private extractText($: cheerio.CheerioAPI, element: cheerio.Cheerio<any>, selector: string): string | undefined {
     const found = element.find(selector).first();
     if (found.length) {
-      return found.text().trim();
+      // Clean up whitespace and newlines
+      return found.text().trim().replace(/\s+/g, ' ').replace(/\n+/g, ' ').trim();
     }
     return undefined;
   }

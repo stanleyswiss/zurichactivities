@@ -194,7 +194,7 @@ export class SwitzerlandTourismScraper {
   }
 
   private async scrapeOffersAsEvents(): Promise<RawEvent[]> {
-    console.log('Fetching events from offers endpoint...');
+    console.log('Fetching events from offers endpoint with full data...');
     
     await this.rateLimiter.waitForNextRequest();
     
@@ -210,6 +210,7 @@ export class SwitzerlandTourismScraper {
     url.searchParams.append('validThrough', futureDate.toISOString().split('T')[0]);
     url.searchParams.append('lang', process.env.ST_LANG || 'de');
     url.searchParams.append('limit', process.env.ST_LIMIT || '100');
+    url.searchParams.append('expand', 'true'); // Get full data including areaServed with coordinates!
 
     try {
       const response = await fetch(url.toString(), {
@@ -232,44 +233,8 @@ export class SwitzerlandTourismScraper {
       
       const rawEvents: RawEvent[] = [];
       
-      // Process first 5 offers with detailed location data, rest without
-      const priorityOffers = items.slice(0, 5);
-      const remainingOffers = items.slice(5);
-      
-      // Process priority offers with location enrichment
-      for (const item of priorityOffers) {
-        try {
-          let enrichedItem = item;
-          if (!item.areaServed && item.identifier) {
-            console.log(`Fetching detailed data for offer: ${item.identifier}`);
-            await this.rateLimiter.waitForNextRequest();
-            
-            const detailUrl = `${this.baseUrl}/offers/${item.identifier}?lang=${process.env.ST_LANG || 'de'}`;
-            const detailResponse = await fetch(detailUrl, {
-              headers: {
-                'x-api-key': this.apiKey,
-                'Accept': 'application/json',
-                'User-Agent': 'SwissActivitiesDashboard/2.0'
-              }
-            });
-            
-            if (detailResponse.ok) {
-              const detailData = await detailResponse.json();
-              if (detailData.data) {
-                enrichedItem = detailData.data;
-              }
-            }
-          }
-          
-          const event = await this.transformOffer(enrichedItem);
-          if (event) rawEvents.push(event);
-        } catch (e) {
-          console.error('Error transforming ST offer:', item?.identifier, e);
-        }
-      }
-      
-      // Process remaining offers without location enrichment to avoid timeout
-      for (const item of remainingOffers) {
+      // Process all offers - they now include full location data thanks to expand=true
+      for (const item of items) {
         try {
           const event = await this.transformOffer(item);
           if (event) rawEvents.push(event);
