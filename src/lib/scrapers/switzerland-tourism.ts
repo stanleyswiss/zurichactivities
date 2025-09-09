@@ -398,23 +398,32 @@ export class SwitzerlandTourismScraper {
       currency = offer.priceSpecification.priceCurrency || 'CHF';
     }
 
-    // Extract location information
+    // Extract location information - FIXED to use proper field
     let lat: number | undefined;
     let lon: number | undefined;
     let venueName: string | undefined;
     let city: string | undefined;
     
-    if (offer.areaServed?.geo) {
+    // Check for coordinates in areaServed.geo (correct field)
+    if (offer.areaServed?.geo?.latitude && offer.areaServed?.geo?.longitude) {
       lat = offer.areaServed.geo.latitude;
       lon = offer.areaServed.geo.longitude;
     }
     
+    // Extract venue name and try to reverse geocode to get city
     if (offer.areaServed?.name) {
       venueName = offer.areaServed.name;
     }
     
-    // Skip reverse geocoding for now to avoid timeouts
-    // TODO: Add reverse geocoding with better caching and timeout handling
+    // Get city name via reverse geocoding if we have coordinates
+    if (lat && lon && !city) {
+      try {
+        const reverseGeocode = await this.reverseGeocodeSwiss(lat, lon);
+        city = reverseGeocode?.city;
+      } catch (error) {
+        console.log('Reverse geocoding failed for offer:', offer.identifier);
+      }
+    }
 
     // Determine category based on offer name and content
     let category: string | undefined = this.mapCategory(offer.name);
@@ -564,8 +573,14 @@ export class SwitzerlandTourismScraper {
       if (node.endDate) {
         endTime = new Date(node.endDate);
       }
+    } else if (isAlpsabzug) {
+      // For Alpsabzug events, set them for the next possible Alpsabzug season (September-October)
+      const now = new Date();
+      const year = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear(); // Sept-Oct
+      startTime = new Date(year, 8, 15); // September 15
+      endTime = new Date(year, 9, 31); // October 31
     } else {
-      // For attractions without specific dates, set them as available from tomorrow
+      // For other attractions without specific dates, set them as available from tomorrow
       // to avoid showing scraper runtime
       startTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
     }
@@ -658,10 +673,15 @@ export class SwitzerlandTourismScraper {
     const city: string | undefined = node?.location?.address?.addressLocality;
     const venueName: string | undefined = node?.location?.name;
 
+    // Try geocoding if coordinates are missing
     if ((!lat || !lon) && (street || city || postalCode)) {
-      const addr = formatSwissAddress(street, postalCode, city);
-      const g = await geocodeAddress(addr);
-      if (g) { lat = g.lat; lon = g.lon; }
+      try {
+        const addr = formatSwissAddress(street, postalCode, city);
+        const g = await geocodeAddress(addr);
+        if (g) { lat = g.lat; lon = g.lon; }
+      } catch (error) {
+        console.log('Geocoding failed for search event:', node?.identifier);
+      }
     }
 
     const priceInfo = node?.offers?.price || node?.offers;
