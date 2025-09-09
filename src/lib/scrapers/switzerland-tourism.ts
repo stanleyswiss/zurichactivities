@@ -345,13 +345,21 @@ export class SwitzerlandTourismScraper {
     if (!offer.name) return false;
     
     const name = offer.name.toLowerCase();
+    const description = (offer.abstract || '').toLowerCase();
+    const combinedText = `${name} ${description}`;
+    
     const eventKeywords = [
       'führung', 'tour', 'fest', 'festival', 'konzert', 'markt', 'event',
       'rundfahrt', 'rundgang', 'besichtigung', 'vorführung', 'aufführung',
-      'workshop', 'kurs', 'seminar', 'veranstaltung'
+      'workshop', 'kurs', 'seminar', 'veranstaltung', 'ausstellung',
+      'theater', 'oper', 'ballet', 'tanz', 'musik', 'show', 'vorstellung',
+      'märit', 'chilbi', 'fasnacht', 'fasching', 'karneval', 'weihnachtsmarkt',
+      'christkindlmärkt', 'ostermärkt', 'flohmarkt', 'bauernmarkt',
+      'sportanlass', 'wettkampf', 'turnier', 'rennen', 'lauf', 'marathon',
+      'wanderung', 'exkursion', 'ausflug', 'spaziergang', 'kultur', 'kulturell'
     ];
     
-    return eventKeywords.some(keyword => name.includes(keyword));
+    return eventKeywords.some(keyword => combinedText.includes(keyword));
   }
 
   private async transformOffer(offer: any): Promise<RawEvent | null> {
@@ -385,16 +393,18 @@ export class SwitzerlandTourismScraper {
     const durationDays = Math.ceil((endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60 * 24));
     
     // Accept all offers that are either:
-    // 1. Short duration (likely actual events)
+    // 1. Short duration (likely actual events) - be more inclusive
     // 2. Have event-like keywords
     // 3. Have specific dates (single day events)
     const isSingleDay = durationDays <= 1;
-    const isShortEvent = durationDays <= 30;
+    const isShortEvent = durationDays <= 60; // Increased from 30 to 60 days
     const hasEventKeywords = this.isEventLikeOffer(offer);
     
-    // Skip only very long-term offers (>90 days) without event keywords
-    if (!hasEventKeywords && durationDays > 90) {
-      return null; // Skip year-round offers unless they contain event keywords
+    // Accept most short-term offers even without keywords
+    if (isShortEvent) {
+      // Allow short-term offers even without keywords (might be events)
+    } else if (!hasEventKeywords && durationDays > 90) {
+      return null; // Skip only long-term offers without event keywords
     }
 
     // Extract price information

@@ -1,7 +1,6 @@
 import cron from 'node-cron';
 import { SwitzerlandTourismScraper } from './scrapers/switzerland-tourism';
 import { LimmattalScraper } from './scrapers/limmattal';
-import { RailwayProxyScraper } from './scrapers/railway-proxy';
 import { db } from './db';
 import { generateUniquenessHash, normalizeTitle } from './utils/deduplication';
 import { RawEvent } from '@/types/event';
@@ -72,12 +71,6 @@ export class EventScheduler {
           result.eventsSaved = savedCount;
         }
 
-        // Special handling for Railway scrapers that save directly to DB
-        if ((source === 'RAILWAY' || source === 'RAILWAY_ALL') && (this as any)._lastRailwayResult) {
-          result.eventsFound = (this as any)._lastRailwayResult.eventsFound || 0;
-          result.eventsSaved = (this as any)._lastRailwayResult.eventsSaved || 0;
-          delete (this as any)._lastRailwayResult;
-        }
 
         result.success = true;
         this.lastRuns[source] = new Date();
@@ -108,7 +101,7 @@ export class EventScheduler {
 
   private async scrapeSource(source: string): Promise<RawEvent[]> {
     // Timeout for individual scrapers - ST needs more time for location fetching
-    const timeoutMs = source === 'ST' ? 25000 : source.startsWith('RAILWAY') ? 15000 : 10000; // 25s for ST, 15s for Railway, 10s for others
+    const timeoutMs = source === 'ST' ? 25000 : 10000; // 25s for ST, 10s for others
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error(`${source} scraper timed out after ${timeoutMs/1000} seconds`)), timeoutMs);
     });
@@ -130,22 +123,9 @@ export class EventScheduler {
       case 'LIMMATTAL':
         const limmattalScraper = new LimmattalScraper();
         return await limmattalScraper.scrapeEvents();
-      case 'ALPSABZUG':
-        // Use Railway proxy to trigger MySwitzerland scraper
-        const railwayProxy = new RailwayProxyScraper();
-        return await railwayProxy.scrapeEvents('myswitzerland');
-      case 'RAILWAY':
-      case 'RAILWAY_ALL':
-        // Trigger all Railway scrapers comprehensively
-        const railwayProxyAll = new RailwayProxyScraper();
-        const railwayResult = await railwayProxyAll.triggerAllRailwayScrapers();
-        // Store the result in a special property so we can report it
-        (this as any)._lastRailwayResult = railwayResult;
-        // Return empty array as Railway saves directly to DB
-        return [];
-      // Only real data sources are enabled
+      // Only clean data sources are supported
       default:
-        throw new Error(`Unknown source: ${source}`);
+        throw new Error(`Unknown source: ${source} - only ST and LIMMATTAL are supported`);
     }
   }
 
