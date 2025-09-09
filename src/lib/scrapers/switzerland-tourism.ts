@@ -231,9 +231,14 @@ export class SwitzerlandTourismScraper {
       console.log(`ST Offers API: ${items.length} offers found`);
       
       const rawEvents: RawEvent[] = [];
-      for (const item of items) {
+      
+      // Process first 5 offers with detailed location data, rest without
+      const priorityOffers = items.slice(0, 5);
+      const remainingOffers = items.slice(5);
+      
+      // Process priority offers with location enrichment
+      for (const item of priorityOffers) {
         try {
-          // For offers without areaServed, fetch detailed data to get location
           let enrichedItem = item;
           if (!item.areaServed && item.identifier) {
             console.log(`Fetching detailed data for offer: ${item.identifier}`);
@@ -257,6 +262,16 @@ export class SwitzerlandTourismScraper {
           }
           
           const event = await this.transformOffer(enrichedItem);
+          if (event) rawEvents.push(event);
+        } catch (e) {
+          console.error('Error transforming ST offer:', item?.identifier, e);
+        }
+      }
+      
+      // Process remaining offers without location enrichment to avoid timeout
+      for (const item of remainingOffers) {
+        try {
+          const event = await this.transformOffer(item);
           if (event) rawEvents.push(event);
         } catch (e) {
           console.error('Error transforming ST offer:', item?.identifier, e);
