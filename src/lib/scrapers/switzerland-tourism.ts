@@ -213,6 +213,9 @@ export class SwitzerlandTourismScraper {
     url.searchParams.append('expand', 'true'); // Get full data including areaServed with coordinates!
 
     try {
+      console.log('ST API URL:', url.toString());
+      console.log('ST API Headers:', { 'x-api-key': this.apiKey ? 'SET' : 'MISSING' });
+      
       const response = await fetch(url.toString(), {
         headers: {
           'x-api-key': this.apiKey,
@@ -230,6 +233,7 @@ export class SwitzerlandTourismScraper {
       const items = data.data || [];
       
       console.log(`ST Offers API: ${items.length} offers found`);
+      console.log('Sample offer titles:', items.slice(0, 5).map((item: any) => item.name || 'No name'));
       
       const rawEvents: RawEvent[] = [];
       
