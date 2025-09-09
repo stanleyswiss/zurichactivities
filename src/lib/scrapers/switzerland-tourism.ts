@@ -93,54 +93,19 @@ export class SwitzerlandTourismScraper {
 
   async scrapeEvents(): Promise<RawEvent[]> {
     try {
-      // Use the attractions endpoint as specified
-      await this.rateLimiter.waitForNextRequest();
+      // Use the offers endpoint for actual events with dates
+      const allEvents: RawEvent[] = [];
       
-      const url = new URL(`${this.baseUrl}/attractions`);
-      const bbox = process.env.ST_BBOX || '7.0,46.0,10.5,48.5';
-      url.searchParams.append('bbox', bbox);
-      url.searchParams.append('lang', process.env.ST_LANG || 'de');
-      url.searchParams.append('limit', process.env.ST_LIMIT || '100');
-
-      console.log('Fetching from:', url.toString());
-
-      const response = await fetch(url.toString(), {
-        headers: {
-          'x-api-key': this.apiKey || 'TaX5CpphzS32bCUNPAfog465D6RtYgO1191X2CZ2',
-          'Accept': 'application/json',
-          'User-Agent': 'SwissActivitiesDashboard/1.0'
-        }
-      });
-
-      if (!response.ok) {
-        console.error(`ST API error: ${response.status} ${response.statusText}`);
-        return [];
-      }
-
-      const data = await response.json();
-      console.log('ST API response keys:', Object.keys(data || {}));
+      // 1. Get current and upcoming offers (events)
+      const eventsFromOffers = await this.scrapeOffersAsEvents();
+      allEvents.push(...eventsFromOffers);
       
-      let items: any[] = [];
-      if (Array.isArray(data)) {
-        items = data;
-      } else if (data && data.data) {
-        items = data.data;
-      }
+      // Skip attractions fallback for now - it's too slow
+      // TODO: Re-enable attractions fallback with better timeout handling
+      console.log(`ST API: Using ${allEvents.length} events from offers only`);
       
-      console.log(`ST API: ${items.length} attractions found`);
-      
-      const rawEvents: RawEvent[] = [];
-      for (const item of items) {
-        try {
-          const event = await this.transformAttraction(item);
-          if (event) rawEvents.push(event);
-        } catch (e) {
-          console.error('Error transforming ST item:', item?.identifier, e);
-        }
-      }
-      
-      console.log(`ST API: ${rawEvents.length} events mapped`);
-      return rawEvents;
+      console.log(`ST API: ${allEvents.length} total events from all sources`);
+      return allEvents;
     } catch (error) {
       console.error('Switzerland Tourism scraper error:', error);
       return [];
@@ -228,34 +193,132 @@ export class SwitzerlandTourismScraper {
     return await this.scrapeAttractionsAsFallback();
   }
 
-  private async scrapeAttractionsAsFallback(): Promise<RawEvent[]> {
-    console.log('Trying OpenData attractions endpoint...');
+  private async scrapeOffersAsEvents(): Promise<RawEvent[]> {
+    console.log('Fetching events from offers endpoint...');
     
-    // Use the documented OpenData endpoint 
-    const url = new URL(`${this.baseUrl}/data`); // OpenData endpoint
+    await this.rateLimiter.waitForNextRequest();
+    
+    const url = new URL(`${this.baseUrl}/offers`);
     const bbox = process.env.ST_BBOX || '7.0,46.0,10.5,48.5';
+    
+    // Set date range for next 3 months
+    const today = new Date();
+    const futureDate = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000); // 90 days from now
+    
     url.searchParams.append('bbox', bbox);
+    url.searchParams.append('validFrom', today.toISOString().split('T')[0]);
+    url.searchParams.append('validThrough', futureDate.toISOString().split('T')[0]);
     url.searchParams.append('lang', process.env.ST_LANG || 'de');
-    url.searchParams.append('limit', process.env.ST_LIMIT || '50');
+    url.searchParams.append('limit', process.env.ST_LIMIT || '100');
 
     try {
       const response = await fetch(url.toString(), {
         headers: {
-          'x-api-key': this.apiKey,
+          'x-api-key': this.apiKey || 'TaX5CpphzS32bCUNPAfog465D6RtYgO1191X2CZ2',
           'Accept': 'application/json',
-          'User-Agent': 'SwissActivitiesDashboard/1.0'
+          'User-Agent': 'SwissActivitiesDashboard/2.0'
         }
       });
 
       if (!response.ok) {
-        console.error(`MySwitzerland Attractions fallback error: ${response.status} ${response.statusText}`);
+        console.error(`ST Offers API error: ${response.status} ${response.statusText}`);
         return [];
       }
 
       const data = await response.json();
       const items = data.data || [];
       
-      console.log(`MySwitzerland Attractions (fallback): ${items.length} items found`);
+      console.log(`ST Offers API: ${items.length} offers found`);
+      
+      const rawEvents: RawEvent[] = [];
+      for (const item of items) {
+        try {
+          const event = await this.transformOffer(item);
+          if (event) rawEvents.push(event);
+        } catch (e) {
+          console.error('Error transforming ST offer:', item?.identifier, e);
+        }
+      }
+      
+      // Search for additional event-like offers with key terms only
+      if (rawEvents.length < 20) {
+        const eventSearchTerms = ['führung', 'festival'];
+        for (const term of eventSearchTerms) {
+          await this.rateLimiter.waitForNextRequest();
+          
+          const searchUrl = new URL(`${this.baseUrl}/offers`);
+          searchUrl.searchParams.append('search', term);
+          searchUrl.searchParams.append('bbox', bbox);
+          searchUrl.searchParams.append('lang', process.env.ST_LANG || 'de');
+          searchUrl.searchParams.append('limit', '10');
+          
+          try {
+            const searchResponse = await fetch(searchUrl.toString(), {
+              headers: {
+                'x-api-key': this.apiKey || 'TaX5CpphzS32bCUNPAfog465D6RtYgO1191X2CZ2',
+                'Accept': 'application/json',
+                'User-Agent': 'SwissActivitiesDashboard/2.0'
+              }
+            });
+            
+            if (searchResponse.ok) {
+              const searchData = await searchResponse.json();
+              const searchItems = searchData.data || [];
+              
+              for (const item of searchItems) {
+                try {
+                  const event = await this.transformOffer(item);
+                  if (event && !rawEvents.find(e => e.sourceEventId === event.sourceEventId)) {
+                    rawEvents.push(event);
+                  }
+                } catch (e) {
+                  console.error('Error transforming search offer:', item?.identifier, e);
+                }
+              }
+            }
+          } catch (e) {
+            console.error(`Error searching for ${term}:`, e);
+          }
+        }
+      }
+      
+      console.log(`ST Offers API: ${rawEvents.length} events mapped`);
+      return rawEvents;
+    } catch (error) {
+      console.error('ST Offers API request failed:', error);
+      return [];
+    }
+  }
+
+  private async scrapeAttractionsAsFallback(): Promise<RawEvent[]> {
+    console.log('Trying attractions endpoint as fallback...');
+    
+    await this.rateLimiter.waitForNextRequest();
+    
+    const url = new URL(`${this.baseUrl}/attractions`);
+    const bbox = process.env.ST_BBOX || '7.0,46.0,10.5,48.5';
+    url.searchParams.append('bbox', bbox);
+    url.searchParams.append('lang', process.env.ST_LANG || 'de');
+    url.searchParams.append('limit', '50');
+
+    try {
+      const response = await fetch(url.toString(), {
+        headers: {
+          'x-api-key': this.apiKey || 'TaX5CpphzS32bCUNPAfog465D6RtYgO1191X2CZ2',
+          'Accept': 'application/json',
+          'User-Agent': 'SwissActivitiesDashboard/2.0'
+        }
+      });
+
+      if (!response.ok) {
+        console.error(`ST Attractions fallback error: ${response.status} ${response.statusText}`);
+        return [];
+      }
+
+      const data = await response.json();
+      const items = data.data || [];
+      
+      console.log(`ST Attractions (fallback): ${items.length} items found`);
       
       const rawEvents: RawEvent[] = [];
       for (const item of items) {
@@ -267,10 +330,10 @@ export class SwitzerlandTourismScraper {
         }
       }
       
-      console.log(`MySwitzerland Attractions (fallback): ${rawEvents.length} events mapped`);
+      console.log(`ST Attractions (fallback): ${rawEvents.length} events mapped`);
       return rawEvents;
     } catch (error) {
-      console.error('MySwitzerland Attractions fallback failed:', error);
+      console.error('ST Attractions fallback failed:', error);
       return [];
     }
   }
@@ -289,7 +352,12 @@ export class SwitzerlandTourismScraper {
   }
 
   private async transformOffer(offer: any): Promise<RawEvent | null> {
-    if (!offer.name || !offer.validFrom || !offer.validThrough) {
+    if (!offer.name) {
+      return null;
+    }
+    
+    // Require valid dates for events
+    if (!offer.validFrom || !offer.validThrough) {
       return null;
     }
 
@@ -304,40 +372,77 @@ export class SwitzerlandTourismScraper {
     if (endTime < oneYearAgo || startTime > oneYearFromNow) {
       return null;
     }
+    
+    // Skip if end date is in the past
+    if (endTime < now) {
+      return null;
+    }
+    
+    // Filter for event-like offers (prefer shorter duration)
+    const durationDays = Math.ceil((endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Prioritize same-day events and short events
+    const isEventLike = durationDays <= 7 || this.isEventLikeOffer(offer);
+    if (!isEventLike && durationDays > 30) {
+      return null; // Skip long-term offers unless they contain event keywords
+    }
 
     // Extract price information
     let priceMin: number | undefined;
+    let priceMax: number | undefined;
     let currency = 'CHF';
     
     if (offer.priceSpecification) {
       priceMin = offer.priceSpecification.minPrice;
+      priceMax = offer.priceSpecification.maxPrice;
       currency = offer.priceSpecification.priceCurrency || 'CHF';
     }
 
-    // Determine category based on offer name
+    // Extract location information
+    let lat: number | undefined;
+    let lon: number | undefined;
+    let venueName: string | undefined;
+    let city: string | undefined;
+    
+    if (offer.areaServed?.geo) {
+      lat = offer.areaServed.geo.latitude;
+      lon = offer.areaServed.geo.longitude;
+    }
+    
+    if (offer.areaServed?.name) {
+      venueName = offer.areaServed.name;
+    }
+    
+    // Skip reverse geocoding for now to avoid timeouts
+    // TODO: Add reverse geocoding with better caching and timeout handling
+
+    // Determine category based on offer name and content
     let category: string | undefined = this.mapCategory(offer.name);
+    if (!category && offer.abstract) {
+      category = this.mapCategory(offer.abstract);
+    }
 
     return {
       source: SOURCES.ST,
       sourceEventId: offer.identifier || offer.url,
       title: offer.name,
-      description: offer.priceSpecification?.description || `Angebot gültig von ${offer.validFrom} bis ${offer.validThrough}`,
+      description: offer.abstract || offer.priceSpecification?.description || `Verfügbar von ${offer.validFrom} bis ${offer.validThrough}`,
       lang: process.env.ST_LANG || 'de',
       category,
       startTime,
       endTime,
-      venueName: undefined,
+      venueName,
       street: undefined,
       postalCode: undefined,
-      city: undefined,
+      city,
       country: 'CH',
-      lat: undefined,
-      lon: undefined,
+      lat,
+      lon,
       priceMin,
-      priceMax: undefined,
+      priceMax,
       currency,
-      url: offer.url,
-      imageUrl: undefined
+      url: offer.url || offer.mainEntityOfPage,
+      imageUrl: offer.image?.[0]?.url
     };
   }
 
