@@ -94,7 +94,11 @@ async function scrapeSimple() {
         
         if (ALPSABZUG_TERMS.some(term => line.includes(term))) {
           // Found a mention, create event
-          const title = lines[i].trim();
+          let title = lines[i].trim();
+          
+          // Clean title by removing date patterns
+          title = title.replace(/\d{1,2}\.\s*\d{1,2}\.\s*\d{4}/g, '').trim();
+          title = title.replace(/^\d{1,2}\s+(Sep|Sept|September|Okt|Oktober)\s*/i, '').trim();
           
           // Look for date nearby
           let eventDate = new Date('2025-09-15'); // Default date
@@ -106,7 +110,7 @@ async function scrapeSimple() {
             }
           }
           
-          // Create event
+          // Create event with proper location fields
           const event = {
             source: 'ALPSABZUG',
             sourceEventId: crypto.createHash('md5').update(`${title}-${eventDate.getTime()}`).digest('hex'),
@@ -115,8 +119,19 @@ async function scrapeSimple() {
             lang: 'de',
             category: 'alpsabzug',
             startTime: eventDate,
+            endTime: undefined,
+            venueName: undefined,
+            street: undefined,
+            postalCode: undefined,
+            city: undefined,
             country: 'CH',
-            url: source.url
+            lat: undefined,
+            lon: undefined,
+            priceMin: undefined,
+            priceMax: undefined,
+            currency: 'CHF',
+            url: source.url,
+            imageUrl: undefined
           };
           
           allEvents.push(event);

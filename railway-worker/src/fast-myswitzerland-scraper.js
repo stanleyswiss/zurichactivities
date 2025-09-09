@@ -124,8 +124,17 @@ class FastMySwitzerlandScraper {
             const locationMatch = allText.match(/\b\w+(?:strasse|platz|weg|gasse|hof|berg|dorf|stadt)\b|\b\d{4}\s+\w+/i);
             const location = locationMatch ? locationMatch[0] : '';
             
+            // Clean the title by removing date patterns
+            let cleanTitle = title;
+            if (dateText && title.includes(dateText)) {
+              cleanTitle = title.replace(dateText, '').trim();
+            }
+            // Also remove common date patterns from title
+            cleanTitle = cleanTitle.replace(/\d{1,2}\.\s*\d{1,2}\.\s*\d{4}/g, '').trim();
+            cleanTitle = cleanTitle.replace(/^\d{1,2}\s+(Jan|Feb|Mar|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez)\s+/i, '').trim();
+            
             events.push({
-              title: title.substring(0, 200),
+              title: cleanTitle.substring(0, 200),
               url: link.href,
               dateText,
               location,
@@ -232,14 +241,28 @@ class FastMySwitzerlandScraper {
   }
 
   parseLocationFast(locationText) {
-    if (!locationText) return { city: 'Switzerland', venueName: 'Switzerland' };
+    if (!locationText) return { city: undefined, venueName: undefined };
     
     const parts = locationText.split(',').map(s => s.trim());
     
-    return {
-      city: parts[parts.length - 1] || 'Switzerland',
-      venueName: parts[0] || locationText
-    };
+    // Try to identify Swiss city
+    let city = undefined;
+    let venueName = undefined;
+    
+    if (parts.length > 0) {
+      // Check for postal code pattern (4 digits + city name)
+      const postalMatch = locationText.match(/(\d{4})\s+([A-Za-zäöüÄÖÜ\s-]+)/); 
+      if (postalMatch) {
+        city = postalMatch[2].trim();
+        venueName = parts[0] !== postalMatch[0] ? parts[0] : undefined;
+      } else {
+        // Last part is usually city
+        city = parts[parts.length - 1];
+        venueName = parts.length > 1 ? parts[0] : undefined;
+      }
+    }
+    
+    return { city, venueName };
   }
 
   mapCategory(text) {

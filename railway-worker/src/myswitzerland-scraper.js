@@ -216,6 +216,14 @@ class MySwitzerlandEventScraper {
         });
 
         title = title || htmlData.title;
+        
+        // Clean title by removing date patterns if they exist
+        if (title && htmlData.dateText) {
+          title = title.replace(htmlData.dateText, '').trim();
+          title = title.replace(/^\d{1,2}\s+(Sep|Sept|September|Okt|Oktober)\s*/i, '').trim();
+          title = title.replace(/^\d{1,2}\.\s*\d{1,2}\.\s*\d{4}\s*/g, '').trim();
+        }
+        
         description = description || htmlData.descriptionText;
         venueName = venueName || htmlData.locationText;
 
@@ -242,11 +250,19 @@ class MySwitzerlandEventScraper {
             }
           }
           
-          // If no postal code found, use first part as city
+          // If no postal code found, try to identify city
           if (!city && addressParts.length > 0) {
-            city = addressParts[addressParts.length - 1]; // Last part is usually city
-            if (addressParts.length > 1) {
-              street = addressParts.slice(0, -1).join(', ');
+            // Check if last part looks like a city (not "Switzerland")
+            const lastPart = addressParts[addressParts.length - 1];
+            if (lastPart && lastPart !== 'Switzerland' && lastPart !== 'Schweiz' && lastPart !== 'CH') {
+              city = lastPart;
+              if (addressParts.length > 1) {
+                street = addressParts.slice(0, -1).join(', ');
+              }
+            } else if (addressParts.length > 1) {
+              // Try second to last part
+              city = addressParts[addressParts.length - 2];
+              venueName = addressParts[0];
             }
           }
           
