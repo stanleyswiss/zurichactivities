@@ -207,7 +207,9 @@ app.listen(PORT, () => {
   console.log(`HTTP server listening on port ${PORT}`);
 });
 
-// Run initial scrape after a delay to ensure DB connection
+// DISABLED: No automatic scraping on startup
+// Railway worker should only respond to manual HTTP triggers
+/*
 setTimeout(() => {
   console.log('Running initial scrape with FAST MySwitzerland scraper...');
   runFastMySwitzerlandScraper().then(result => {
@@ -230,6 +232,7 @@ setTimeout(() => {
     });
   });
 }, 5000);
+*/
 
 // DISABLED: Cron scheduling disabled - Railway scrapers should not run automatically
 // Only manual triggers via HTTP POST /scrape endpoint are allowed
