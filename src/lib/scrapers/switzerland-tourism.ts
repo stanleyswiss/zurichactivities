@@ -233,7 +233,30 @@ export class SwitzerlandTourismScraper {
       const rawEvents: RawEvent[] = [];
       for (const item of items) {
         try {
-          const event = await this.transformOffer(item);
+          // For offers without areaServed, fetch detailed data to get location
+          let enrichedItem = item;
+          if (!item.areaServed && item.identifier) {
+            console.log(`Fetching detailed data for offer: ${item.identifier}`);
+            await this.rateLimiter.waitForNextRequest();
+            
+            const detailUrl = `${this.baseUrl}/offers/${item.identifier}?lang=${process.env.ST_LANG || 'de'}`;
+            const detailResponse = await fetch(detailUrl, {
+              headers: {
+                'x-api-key': this.apiKey || 'TaX5CpphzS32bCUNPAfog465D6RtYgO1191X2CZ2',
+                'Accept': 'application/json',
+                'User-Agent': 'SwissActivitiesDashboard/2.0'
+              }
+            });
+            
+            if (detailResponse.ok) {
+              const detailData = await detailResponse.json();
+              if (detailData.data) {
+                enrichedItem = detailData.data;
+              }
+            }
+          }
+          
+          const event = await this.transformOffer(enrichedItem);
           if (event) rawEvents.push(event);
         } catch (e) {
           console.error('Error transforming ST offer:', item?.identifier, e);
