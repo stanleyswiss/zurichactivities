@@ -34,11 +34,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { sources, force } = body;
     
-    // Default sources now include Railway scrapers
-    const defaultSources = process.env.SOURCES_ENABLED?.split(',').map(s => s.trim().toUpperCase()) || ['ST', 'LIMMATTAL'];
+    // Clean data sources only: MySwitzerland API + Limmattal HTML scraping
+    const defaultSources = ['ST', 'LIMMATTAL']; // Force clean sources only
     
-    // Always include Railway scrapers when triggered from UI (no specific sources)
-    const requestedSources = sources || [...defaultSources, 'RAILWAY_ALL'];
+    // Use only clean sources when triggered from UI (no Railway web scrapers)
+    const requestedSources = sources || defaultSources;
     
     // Use the scheduler to run scrapers
     const results = await eventScheduler.runAllScrapers(requestedSources, force);
@@ -86,11 +86,11 @@ export async function GET(request: NextRequest) {
     const forceParam = searchParams.get('force');
     const force = forceParam === '1' || forceParam === 'true';
 
-    // Default sources now include Railway scrapers
-    const defaultSources = process.env.SOURCES_ENABLED?.split(',').map(s => s.trim().toUpperCase()) || ['ST', 'LIMMATTAL'];
+    // Clean data sources only: MySwitzerland API + Limmattal HTML scraping  
+    const defaultSources = ['ST', 'LIMMATTAL']; // Force clean sources only
     
-    // For GET requests, also include Railway if no specific sources requested
-    const requestedSources = sources.length > 0 ? sources : [...defaultSources, 'RAILWAY_ALL'];
+    // For GET requests, use only clean sources (no Railway web scrapers)
+    const requestedSources = sources.length > 0 ? sources : defaultSources;
 
     const results = await eventScheduler.runAllScrapers(requestedSources, force);
 
