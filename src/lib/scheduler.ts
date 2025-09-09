@@ -107,8 +107,8 @@ export class EventScheduler {
   }
 
   private async scrapeSource(source: string): Promise<RawEvent[]> {
-    // Reduce timeout for individual scrapers to stay within Vercel limits
-    const timeoutMs = source.startsWith('RAILWAY') ? 15000 : 10000; // 15s for Railway, 10s for others
+    // Timeout for individual scrapers - ST needs more time for location fetching
+    const timeoutMs = source === 'ST' ? 25000 : source.startsWith('RAILWAY') ? 15000 : 10000; // 25s for ST, 15s for Railway, 10s for others
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error(`${source} scraper timed out after ${timeoutMs/1000} seconds`)), timeoutMs);
     });
