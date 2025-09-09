@@ -214,7 +214,7 @@ export class SwitzerlandTourismScraper {
     try {
       const response = await fetch(url.toString(), {
         headers: {
-          'x-api-key': this.apiKey || 'TaX5CpphzS32bCUNPAfog465D6RtYgO1191X2CZ2',
+          'x-api-key': this.apiKey,
           'Accept': 'application/json',
           'User-Agent': 'SwissActivitiesDashboard/2.0'
         }
@@ -242,7 +242,7 @@ export class SwitzerlandTourismScraper {
             const detailUrl = `${this.baseUrl}/offers/${item.identifier}?lang=${process.env.ST_LANG || 'de'}`;
             const detailResponse = await fetch(detailUrl, {
               headers: {
-                'x-api-key': this.apiKey || 'TaX5CpphzS32bCUNPAfog465D6RtYgO1191X2CZ2',
+                'x-api-key': this.apiKey,
                 'Accept': 'application/json',
                 'User-Agent': 'SwissActivitiesDashboard/2.0'
               }
@@ -278,7 +278,7 @@ export class SwitzerlandTourismScraper {
           try {
             const searchResponse = await fetch(searchUrl.toString(), {
               headers: {
-                'x-api-key': this.apiKey || 'TaX5CpphzS32bCUNPAfog465D6RtYgO1191X2CZ2',
+                'x-api-key': this.apiKey,
                 'Accept': 'application/json',
                 'User-Agent': 'SwissActivitiesDashboard/2.0'
               }
@@ -327,7 +327,7 @@ export class SwitzerlandTourismScraper {
     try {
       const response = await fetch(url.toString(), {
         headers: {
-          'x-api-key': this.apiKey || 'TaX5CpphzS32bCUNPAfog465D6RtYgO1191X2CZ2',
+          'x-api-key': this.apiKey,
           'Accept': 'application/json',
           'User-Agent': 'SwissActivitiesDashboard/2.0'
         }
