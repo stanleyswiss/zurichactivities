@@ -381,13 +381,20 @@ export class SwitzerlandTourismScraper {
       return null;
     }
     
-    // Filter for event-like offers (prefer shorter duration)
+    // Filter for event-like offers but be more inclusive
     const durationDays = Math.ceil((endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60 * 24));
     
-    // Prioritize same-day events and short events
-    const isEventLike = durationDays <= 7 || this.isEventLikeOffer(offer);
-    if (!isEventLike && durationDays > 30) {
-      return null; // Skip long-term offers unless they contain event keywords
+    // Accept all offers that are either:
+    // 1. Short duration (likely actual events)
+    // 2. Have event-like keywords
+    // 3. Have specific dates (single day events)
+    const isSingleDay = durationDays <= 1;
+    const isShortEvent = durationDays <= 30;
+    const hasEventKeywords = this.isEventLikeOffer(offer);
+    
+    // Skip only very long-term offers (>90 days) without event keywords
+    if (!hasEventKeywords && durationDays > 90) {
+      return null; // Skip year-round offers unless they contain event keywords
     }
 
     // Extract price information
