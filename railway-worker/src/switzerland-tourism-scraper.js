@@ -1,4 +1,10 @@
-const prisma = require('./db');
+const { PrismaClient } = require('@prisma/client');
+
+// Initialize Prisma client
+const prisma = new PrismaClient({
+  log: ['error', 'warn'],
+  errorFormat: 'minimal'
+});
 
 class SwitzerlandTourismScraper {
   constructor() {
