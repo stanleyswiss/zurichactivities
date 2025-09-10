@@ -74,8 +74,7 @@ class SwitzerlandTourismScraper {
 
   async fetchAllOffers() {
     const allOffers = [];
-    const bbox = process.env.ST_BBOX || '7.0,46.0,10.5,48.5';
-    const maxPages = parseInt(process.env.ST_LIMIT || '10'); // Number of pages to fetch
+    const maxPages = parseInt(process.env.ST_LIMIT || '50'); // Increased to capture more events
     
     // Set date range for next 3 months
     const today = new Date();
@@ -84,7 +83,10 @@ class SwitzerlandTourismScraper {
     for (let page = 0; page < maxPages; page++) {
       try {
         const url = new URL(`${this.baseUrl}/offers`);
-        url.searchParams.append('bbox', bbox);
+        // Remove bbox - let UI handle distance filtering with all Swiss events
+        if (process.env.ST_BBOX) {
+          url.searchParams.append('bbox', process.env.ST_BBOX);
+        }
         url.searchParams.append('validFrom', today.toISOString().split('T')[0]);
         url.searchParams.append('validThrough', futureDate.toISOString().split('T')[0]);
         url.searchParams.append('lang', process.env.ST_LANG || 'de');
@@ -179,7 +181,7 @@ class SwitzerlandTourismScraper {
       source: 'ST',
       sourceEventId: offer.identifier || offer.url,
       title: offer.name,
-      description: offer.abstract || offer.description || `Available from ${offer.validFrom} to ${offer.validThrough}`,
+      description: this.cleanHtml(offer.abstract || offer.description || `Available from ${offer.validFrom} to ${offer.validThrough}`),
       lang: process.env.ST_LANG || 'de',
       category: this.mapCategory(offer.name + ' ' + (offer.abstract || '')),
       startTime,
@@ -216,7 +218,16 @@ class SwitzerlandTourismScraper {
   mapCategory(text) {
     const textLower = text.toLowerCase();
     
-    if (textLower.includes('alp') || textLower.includes('vieh')) {
+    // Comprehensive Alpsabzug detection
+    const alpsabzugTerms = [
+      'alpabzug', 'alpsabzug', 'alpabfahrt', 'alpsabfahrt', 'alpabtrieb', 'alpabscheid',
+      'viehscheid', 'viehschied', 'désalpe', 'desalpe', 'alpfest', 'älplerfest',
+      'sennen', 'sennerei', 'alpaufzug', 'alpauftrieb', 'tierumfahrt',
+      'alpweide', 'almabtrieb', 'cattle descent', 'alpine cattle',
+      'alp', 'vieh', 'kühe', 'cattle', 'cow', 'bergbauer'
+    ];
+    
+    if (alpsabzugTerms.some(term => textLower.includes(term))) {
       return 'alpsabzug';
     }
     if (textLower.includes('festival') || textLower.includes('fest')) {
@@ -305,6 +316,23 @@ class SwitzerlandTourismScraper {
     
     console.log(`Saved ${savedCount} new events to database`);
     return savedCount;
+  }
+
+  cleanHtml(text) {
+    if (!text) return null;
+    
+    // Remove HTML tags
+    const cleanText = text
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .trim();
+    
+    return cleanText || null;
   }
 
   generateHash(event) {
