@@ -12,6 +12,14 @@ class SwitzerlandTourismScraper {
     this.baseUrl = 'https://opendata.myswitzerland.io/v1';
     this.email = process.env.NOMINATIM_EMAIL || 'activities@example.com';
     
+    // Debug environment variables
+    console.log('ST_API_KEY present:', !!this.apiKey);
+    console.log('ST_API_KEY length:', this.apiKey.length);
+    console.log('ST_BBOX:', process.env.ST_BBOX);
+    console.log('ST_LANG:', process.env.ST_LANG);
+    console.log('ST_LIMIT:', process.env.ST_LIMIT);
+    console.log('NOMINATIM_EMAIL:', process.env.NOMINATIM_EMAIL);
+    
     if (!this.apiKey) {
       throw new Error('ST_API_KEY is required for Switzerland Tourism scraper');
     }
