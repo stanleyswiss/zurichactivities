@@ -100,8 +100,8 @@ export class EventScheduler {
   }
 
   private async scrapeSource(source: string): Promise<RawEvent[]> {
-    // Timeout for individual scrapers - ST needs more time for location fetching
-    const timeoutMs = source === 'ST' ? 25000 : 10000; // 25s for ST, 10s for others
+    // Timeout for individual scrapers - ST needs more time for pagination
+    const timeoutMs = source === 'ST' ? 40000 : 10000; // 40s for ST (pagination), 10s for others
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error(`${source} scraper timed out after ${timeoutMs/1000} seconds`)), timeoutMs);
     });

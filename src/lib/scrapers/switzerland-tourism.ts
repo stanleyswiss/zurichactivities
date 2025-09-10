@@ -204,7 +204,7 @@ export class SwitzerlandTourismScraper {
     const futureDate = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000); // 90 days from now
     
     // API seems to have a fixed page size of 10, so fetch multiple pages
-    const maxPages = 10; // Get up to 100 offers (10 pages x 10)
+    const maxPages = 5; // Get up to 50 offers (5 pages x 10) to avoid timeout
     
     for (let page = 0; page < maxPages; page++) {
       await this.rateLimiter.waitForNextRequest();
