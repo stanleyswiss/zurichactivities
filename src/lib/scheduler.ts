@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { SwitzerlandTourismScraper } from './scrapers/switzerland-tourism';
+import { STProxyScraper } from './scrapers/st-proxy';
 import { LimmattalScraper } from './scrapers/limmattal';
 import { db } from './db';
 import { generateUniquenessHash, normalizeTitle } from './utils/deduplication';
@@ -70,6 +70,13 @@ export class EventScheduler {
           const savedCount = await this.saveEvents(events, force);
           result.eventsSaved = savedCount;
         }
+        
+        // Special handling for ST scraper that saves directly to DB via Railway
+        if (source === 'ST' && (this as any)._lastSTResult) {
+          result.eventsFound = (this as any)._lastSTResult.eventsFound || 0;
+          result.eventsSaved = (this as any)._lastSTResult.eventsSaved || 0;
+          delete (this as any)._lastSTResult;
+        }
 
 
         result.success = true;
@@ -118,8 +125,14 @@ export class EventScheduler {
   private async executeScraper(source: string): Promise<RawEvent[]> {
     switch (source) {
       case 'ST':
-        const stScraper = new SwitzerlandTourismScraper();
-        return await stScraper.scrapeEvents();
+        // Use Railway proxy for ST scraping (with geocoding)
+        const stProxy = new STProxyScraper();
+        const events = await stProxy.scrapeEvents();
+        // Store Railway result for reporting
+        if ((stProxy as any)._result) {
+          (this as any)._lastSTResult = (stProxy as any)._result;
+        }
+        return events;
       case 'LIMMATTAL':
         const limmattalScraper = new LimmattalScraper();
         return await limmattalScraper.scrapeEvents();

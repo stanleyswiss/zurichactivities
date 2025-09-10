@@ -8,6 +8,7 @@ const { runStructuredDataScraper } = require('./structured-data-scraper');
 const { runComprehensiveMySwitzerlandScraper } = require('./comprehensive-myswitzerland-scraper');
 const { runMunicipalScraper } = require('./municipal-scraper-architecture');
 const { runFastMySwitzerlandScraper } = require('./fast-myswitzerland-scraper');
+const { SwitzerlandTourismScraper } = require('./switzerland-tourism-scraper');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,18 +24,39 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', service: 'alpsabzug-scraper' });
 });
 
-// DISABLED: Railway scrapers are no longer used to prevent data pollution
-// All scraping is now handled by clean API sources (MySwitzerland API + Limmattal HTML)
+// Re-enabled for Switzerland Tourism API scraping with proper geocoding
 app.post('/scrape', async (req, res) => {
-  console.log('Railway scraper endpoint called but DISABLED to prevent web-scraped data pollution');
+  console.log('Railway scraper endpoint called');
   console.log('Request body:', req.body);
   
-  res.status(200).json({
-    success: false,
-    message: 'Railway scrapers are disabled. Use clean MySwitzerland API + Limmattal HTML scraping instead.',
-    disabled: true,
-    reason: 'Prevents web-scraped data pollution in favor of clean API sources'
-  });
+  const scraperType = req.body?.type || 'st-api';
+  
+  // Only allow ST API scraping - no web scraping
+  if (scraperType !== 'st-api') {
+    return res.status(200).json({
+      success: false,
+      message: 'Only Switzerland Tourism API scraping is enabled',
+      allowedTypes: ['st-api']
+    });
+  }
+  
+  try {
+    console.log('Running Switzerland Tourism API scraper with geocoding...');
+    const scraper = new SwitzerlandTourismScraper();
+    const result = await scraper.scrapeEvents();
+    
+    res.json({
+      success: true,
+      scraperType: 'st-api',
+      ...result
+    });
+  } catch (error) {
+    console.error('ST API scraper error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 // Start HTTP server
