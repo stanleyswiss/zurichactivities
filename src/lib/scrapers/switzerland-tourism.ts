@@ -209,12 +209,14 @@ export class SwitzerlandTourismScraper {
     url.searchParams.append('validFrom', today.toISOString().split('T')[0]);
     url.searchParams.append('validThrough', futureDate.toISOString().split('T')[0]);
     url.searchParams.append('lang', process.env.ST_LANG || 'de');
-    url.searchParams.append('limit', process.env.ST_LIMIT || '100');
+    // API uses 'size' parameter, not 'limit'
+    url.searchParams.append('size', process.env.ST_LIMIT || '100');
     url.searchParams.append('expand', 'true'); // Get full data including areaServed with coordinates!
 
     try {
       console.log('ST API URL:', url.toString());
-      console.log('ST API Headers:', { 'x-api-key': this.apiKey ? 'SET' : 'MISSING' });
+      console.log('ST API key length:', this.apiKey ? this.apiKey.length : 0);
+      console.log('ST API key first 10 chars:', this.apiKey ? this.apiKey.substring(0, 10) + '...' : 'MISSING');
       
       const response = await fetch(url.toString(), {
         headers: {
