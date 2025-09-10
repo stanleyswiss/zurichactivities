@@ -204,7 +204,7 @@ export class SwitzerlandTourismScraper {
     const futureDate = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000); // 90 days from now
     
     // API seems to have a fixed page size of 10, so fetch multiple pages
-    const maxPages = 5; // Get up to 50 offers (5 pages x 10) to avoid timeout
+    const maxPages = 3; // Get up to 30 offers (3 pages x 10) to stay under Vercel 30s limit
     
     for (let page = 0; page < maxPages; page++) {
       await this.rateLimiter.waitForNextRequest();
@@ -431,15 +431,8 @@ export class SwitzerlandTourismScraper {
       venueName = offer.areaServed.name;
     }
     
-    // Get city name via reverse geocoding if we have coordinates
-    if (lat && lon && !city) {
-      try {
-        const reverseGeocode = await this.reverseGeocodeSwiss(lat, lon);
-        city = reverseGeocode?.city;
-      } catch (error) {
-        console.log('Reverse geocoding failed for offer:', offer.identifier);
-      }
-    }
+    // Skip reverse geocoding for offers - too slow for Vercel timeout
+    // City can be extracted from areaServed.name if needed
 
     // Determine category based on offer name and content
     let category: string | undefined = this.mapCategory(offer.name);
@@ -564,17 +557,8 @@ export class SwitzerlandTourismScraper {
       }
     }
 
-    // Extract city from address if coordinates available
+    // Skip reverse geocoding - too slow for Vercel timeout
     let city: string | undefined;
-    if (lat && lon) {
-      try {
-        // Try to reverse geocode to get city name
-        const reverseGeocode = await this.reverseGeocodeSwiss(lat, lon);
-        city = reverseGeocode?.city;
-      } catch (error) {
-        console.log('Reverse geocoding failed:', error);
-      }
-    }
 
     // Extract date information if available, otherwise use upcoming dates
     let startTime = new Date();
