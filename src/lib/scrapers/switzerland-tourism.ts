@@ -196,27 +196,33 @@ export class SwitzerlandTourismScraper {
   private async scrapeOffersAsEvents(): Promise<RawEvent[]> {
     console.log('Fetching events from offers endpoint with full data...');
     
-    await this.rateLimiter.waitForNextRequest();
-    
-    const url = new URL(`${this.baseUrl}/offers`);
+    const allItems: any[] = [];
     const bbox = process.env.ST_BBOX || '7.0,46.0,10.5,48.5';
     
     // Set date range for next 3 months
     const today = new Date();
     const futureDate = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000); // 90 days from now
     
-    url.searchParams.append('bbox', bbox);
-    url.searchParams.append('validFrom', today.toISOString().split('T')[0]);
-    url.searchParams.append('validThrough', futureDate.toISOString().split('T')[0]);
-    url.searchParams.append('lang', process.env.ST_LANG || 'de');
-    // API uses 'size' parameter, not 'limit'
-    url.searchParams.append('size', process.env.ST_LIMIT || '100');
-    url.searchParams.append('expand', 'true'); // Get full data including areaServed with coordinates!
+    // API seems to have a fixed page size of 10, so fetch multiple pages
+    const maxPages = 10; // Get up to 100 offers (10 pages x 10)
+    
+    for (let page = 0; page < maxPages; page++) {
+      await this.rateLimiter.waitForNextRequest();
+      
+      const url = new URL(`${this.baseUrl}/offers`);
+      url.searchParams.append('bbox', bbox);
+      url.searchParams.append('validFrom', today.toISOString().split('T')[0]);
+      url.searchParams.append('validThrough', futureDate.toISOString().split('T')[0]);
+      url.searchParams.append('lang', process.env.ST_LANG || 'de');
+      url.searchParams.append('page', page.toString());
+      url.searchParams.append('expand', 'true'); // Get full data including areaServed with coordinates!
 
-    try {
-      console.log('ST API URL:', url.toString());
-      console.log('ST API key length:', this.apiKey ? this.apiKey.length : 0);
-      console.log('ST API key first 10 chars:', this.apiKey ? this.apiKey.substring(0, 10) + '...' : 'MISSING');
+      try {
+        if (page === 0) {
+          console.log('ST API URL:', url.toString());
+          console.log('ST API key length:', this.apiKey ? this.apiKey.length : 0);
+          console.log('ST API key first 10 chars:', this.apiKey ? this.apiKey.substring(0, 10) + '...' : 'MISSING');
+        }
       
       const response = await fetch(url.toString(), {
         headers: {
@@ -231,72 +237,56 @@ export class SwitzerlandTourismScraper {
         return [];
       }
 
-      const data = await response.json();
-      const items = data.data || [];
-      
-      console.log(`ST Offers API: ${items.length} offers found`);
-      console.log('Sample offer titles:', items.slice(0, 5).map((item: any) => item.name || 'No name'));
-      
-      const rawEvents: RawEvent[] = [];
-      
-      // Process all offers - they now include full location data thanks to expand=true
-      for (const item of items) {
-        try {
-          const event = await this.transformOffer(item);
-          if (event) rawEvents.push(event);
-        } catch (e) {
-          console.error('Error transforming ST offer:', item?.identifier, e);
-        }
-      }
-      
-      // Search for additional event-like offers with key terms only
-      if (rawEvents.length < 20) {
-        const eventSearchTerms = ['führung', 'festival'];
-        for (const term of eventSearchTerms) {
-          await this.rateLimiter.waitForNextRequest();
+        const data = await response.json();
+        const items = data.data || [];
+        
+        console.log(`ST Offers API page ${page}: ${items.length} offers found`);
+        if (page === 0) {
+          console.log('Sample offer titles:', items.slice(0, 5).map((item: any) => item.name || 'No name'));
           
-          const searchUrl = new URL(`${this.baseUrl}/offers`);
-          searchUrl.searchParams.append('search', term);
-          searchUrl.searchParams.append('bbox', bbox);
-          searchUrl.searchParams.append('lang', process.env.ST_LANG || 'de');
-          searchUrl.searchParams.append('limit', '10');
-          
-          try {
-            const searchResponse = await fetch(searchUrl.toString(), {
-              headers: {
-                'x-api-key': this.apiKey,
-                'Accept': 'application/json',
-                'User-Agent': 'SwissActivitiesDashboard/2.0'
-              }
+          // Check if API has pagination info
+          if (data.meta?.page) {
+            console.log('API pagination info:', {
+              currentPage: data.meta.page.number,
+              pageSize: data.meta.page.size,
+              totalElements: data.meta.page.totalElements,
+              totalPages: data.meta.page.totalPages
             });
-            
-            if (searchResponse.ok) {
-              const searchData = await searchResponse.json();
-              const searchItems = searchData.data || [];
-              
-              for (const item of searchItems) {
-                try {
-                  const event = await this.transformOffer(item);
-                  if (event && !rawEvents.find(e => e.sourceEventId === event.sourceEventId)) {
-                    rawEvents.push(event);
-                  }
-                } catch (e) {
-                  console.error('Error transforming search offer:', item?.identifier, e);
-                }
-              }
-            }
-          } catch (e) {
-            console.error(`Error searching for ${term}:`, e);
           }
         }
+        
+        // Add items to allItems array
+        allItems.push(...items);
+        
+        // Stop if we got less than expected (no more pages)
+        if (items.length < 10) {
+          console.log(`Only ${items.length} items on page ${page}, stopping pagination`);
+          break;
+        }
+      } catch (error) {
+        console.error(`ST Offers API page ${page} failed:`, error);
+        if (page === 0) return []; // If first page fails, return empty
+        break; // Otherwise just stop pagination
       }
-      
-      console.log(`ST Offers API: ${rawEvents.length} events mapped`);
-      return rawEvents;
-    } catch (error) {
-      console.error('ST Offers API request failed:', error);
-      return [];
     }
+    
+    console.log(`ST Offers API: Total ${allItems.length} offers collected from ${Math.ceil(allItems.length / 10)} pages`);
+    
+    const rawEvents: RawEvent[] = [];
+    
+    // Process all collected offers
+    for (const item of allItems) {
+      try {
+        const event = await this.transformOffer(item);
+        if (event) rawEvents.push(event);
+      } catch (e) {
+        console.error('Error transforming ST offer:', item?.identifier, e);
+      }
+    }
+      
+    // Skip search terms for now - we should have enough with pagination
+    console.log(`ST Offers API: ${rawEvents.length} events mapped from ${allItems.length} offers`);
+    return rawEvents;
   }
 
   private async scrapeAttractionsAsFallback(): Promise<RawEvent[]> {
