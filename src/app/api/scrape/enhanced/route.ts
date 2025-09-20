@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
           dateFormat: municipality.dateFormat || 'dd.mm.yyyy',
           language: municipality.language,
           requiresJavascript: municipality.requiresJavascript,
-          notes: municipality.enhancedNotes,
+          notes: municipality.enhancedNotes || undefined,
         };
 
         console.log(`Scraping ${municipality.name} (${municipality.cmsType})...`);
