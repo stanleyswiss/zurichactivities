@@ -4,7 +4,20 @@ import { eventScheduler } from '@/lib/scheduler';
 function isAuthorized(request: NextRequest) {
   const token = process.env.SCRAPE_TOKEN;
   const isVercelCron = request.headers.has('x-vercel-cron');
+  
+  // Allow Vercel cron
   if (isVercelCron) return true;
+  
+  // Allow UI requests from the same domain (zurichactivities.vercel.app)
+  const origin = request.headers.get('origin');
+  const host = request.headers.get('host');
+  const isUIRequest = origin && host && (
+    origin.includes(host) || 
+    origin.includes('zurichactivities.vercel.app') ||
+    host.includes('zurichactivities.vercel.app')
+  );
+  
+  if (isUIRequest) return true;
   if (!token) return true; // If no token configured, allow for now
   
   const auth = request.headers.get('authorization');
