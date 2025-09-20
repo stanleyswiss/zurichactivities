@@ -1,0 +1,88 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Municipality {
+  id                String    @id @default(cuid())
+  bfsNumber         Int       @unique // Official Swiss BFS municipality number
+  name              String
+  nameNorm          String    // Normalized name for searching
+  canton            String
+  district          String?
+  websiteUrl        String?
+  eventPageUrl      String?
+  eventPagePattern  String?   // Pattern that worked (e.g. /veranstaltungen)
+  cmsType           String?   // GOViS, i-web, wordpress, custom, etc.
+  lat               Float
+  lon               Float
+  distanceFromHome  Float     // Distance from Schlieren in km
+  population        Int?
+  lastScraped       DateTime?
+  lastSuccessful    DateTime?
+  scrapeStatus      String    @default("pending") // pending, active, failed, disabled
+  scrapeError       String?
+  eventCount        Int       @default(0) // Count of events found
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  events            Event[]   @relation("MunicipalityEvents")
+  
+  @@index([canton])
+  @@index([distanceFromHome])
+  @@index([scrapeStatus])
+  @@index([lastScraped])
+}
+
+model Event {
+  id               String        @id @default(cuid())
+  source           String        // 'MUNICIPAL'
+  sourceEventId    String?
+  title            String
+  titleNorm        String        // normalized for dedup
+  description      String?
+  lang             String        @default("de")
+  category         String?
+  startTime        DateTime
+  endTime          DateTime?
+  venueName        String?
+  street           String?
+  postalCode       String?
+  city             String?
+  country          String        @default("CH")
+  lat              Float?
+  lon              Float?
+  priceMin         Float?
+  priceMax         Float?
+  currency         String        @default("CHF")
+  url              String?
+  imageUrl         String?
+  uniquenessHash   String        @unique
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  
+  municipalityId   String?
+  municipality     Municipality? @relation("MunicipalityEvents", fields: [municipalityId], references: [id])
+
+  @@index([startTime])
+  @@index([lat, lon])
+  @@index([source])
+  @@index([category])
+  @@index([municipalityId])
+}
+
+model GeocodeCache {
+  id         String   @id @default(cuid())
+  addressKey String   @unique
+  lat        Float
+  lon        Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
