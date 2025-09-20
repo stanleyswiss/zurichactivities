@@ -54,22 +54,35 @@ export class EventScheduler {
     try {
       console.log(`Starting municipal scrape: ${limit} municipalities within ${maxDistance}km`);
 
-      // For now, we only have GOViS scraper implemented
-      const govisScraper = new GOViSScraper(db);
-      const result = await govisScraper.scrapeMultipleMunicipalities(limit, maxDistance);
+      // Use local municipal scraper with proper database connection handling
+      try {
+        const govisScraper = new GOViSScraper(db);
+        const result = await govisScraper.scrapeMultipleMunicipalities(limit, maxDistance);
 
-      results.push({
-        source: 'MUNICIPAL',
-        success: result.success > 0,
-        eventsFound: result.totalEvents,
-        eventsSaved: result.totalEvents, // GOViS scraper saves directly
-        duration: Date.now() - startTime,
-        municipalitiesScraped: result.success + result.failed,
-      });
+        results.push({
+          source: 'MUNICIPAL',
+          success: result.success > 0,
+          eventsFound: result.totalEvents,
+          eventsSaved: result.totalEvents,
+          duration: Date.now() - startTime,
+          municipalitiesScraped: result.success + result.failed,
+        });
+        
+        console.log(`Municipal scrape completed: ${result.success} succeeded, ${result.failed} failed, ${result.totalEvents} events found`);
+      } catch (dbError) {
+        console.error('Database connection failed, municipal scraping not available:', dbError);
+        results.push({
+          source: 'MUNICIPAL',
+          success: false,
+          eventsFound: 0,
+          eventsSaved: 0,
+          duration: Date.now() - startTime,
+          error: 'Database connection failed - municipal scraping requires database access',
+          municipalitiesScraped: 0,
+        });
+      }
 
       this.lastRun = new Date();
-      
-      console.log(`Municipal scrape completed: ${result.success} succeeded, ${result.failed} failed, ${result.totalEvents} events found`);
 
     } catch (error) {
       console.error('Municipal scraper error:', error);
@@ -80,6 +93,7 @@ export class EventScheduler {
         eventsSaved: 0,
         duration: Date.now() - startTime,
         error: error instanceof Error ? error.message : 'Unknown error',
+        municipalitiesScraped: 0,
       });
     } finally {
       this.isRunning = false;
