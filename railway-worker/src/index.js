@@ -28,13 +28,13 @@ app.post('/seed-municipalities', async (req, res) => {
     
     console.log(`Starting municipality seeding within ${maxDistance}km...`);
     
-    // Fetch municipalities from Swiss Post API
+    // Fetch municipalities from official Swiss GeoAdmin API
     const response = await fetch(
-      'https://swisspost.opendatasoft.com/api/records/1.0/search/?dataset=politische-gemeinden_v2&rows=3000&facet=kanton'
+      'https://api3.geo.admin.ch/rest/services/api/MapServer/ch.swisstopo.swissboundaries3d-gemeinde-flaeche.fill?geometryType=esriGeometryEnvelope&geometry=485000,75000,835000,300000&outFields=*&returnGeometry=true&f=geojson&where=jahr=2024'
     );
     
     if (!response.ok) {
-      throw new Error(`Swiss Post API error: ${response.status}`);
+      throw new Error(`GeoAdmin API error: ${response.status}`);
     }
 
     const data = await response.json();
@@ -45,50 +45,73 @@ app.post('/seed-municipalities', async (req, res) => {
     let stored = 0;
     let skipped = 0;
     
-    for (const record of data.records) {
-      const fields = record.fields;
+    // Process GeoJSON features
+    for (const feature of data.features) {
+      const props = feature.properties;
+      const geometry = feature.geometry;
       
-      if (!fields.geo_point_2d) {
+      if (!geometry || !geometry.coordinates) {
         skipped++;
         continue;
       }
       
-      const lat = fields.geo_point_2d[0];
-      const lon = fields.geo_point_2d[1];
+      // Calculate centroid for polygon geometry
+      let centerLat, centerLon;
+      if (geometry.type === 'Polygon') {
+        const coords = geometry.coordinates[0]; // First ring of polygon
+        let latSum = 0, lonSum = 0;
+        for (const coord of coords) {
+          lonSum += coord[0];
+          latSum += coord[1];
+        }
+        centerLat = latSum / coords.length;
+        centerLon = lonSum / coords.length;
+        
+        // Convert Swiss coordinates to WGS84 (approximate)
+        const lat = 46.95240 + ((centerLat - 200000) * 10.82e-6);
+        const lon = 2.67825 + ((centerLon - 600000) * 10.90e-6);
+        centerLat = lat;
+        centerLon = lon;
+      } else {
+        skipped++;
+        continue;
+      }
       
       // Calculate distance using simple formula
       const distance = Math.sqrt(
-        Math.pow((lat - schlierenLat) * 111, 2) + 
-        Math.pow((lon - schlierenLon) * 111 * Math.cos(lat * Math.PI / 180), 2)
+        Math.pow((centerLat - schlierenLat) * 111, 2) + 
+        Math.pow((centerLon - schlierenLon) * 111 * Math.cos(centerLat * Math.PI / 180), 2)
       );
       
       if (distance <= maxDistance) {
-        const nameNorm = fields.gemeindename
+        // Extract BFS number from ID field (format: "bfsnr-year")
+        const bfsNumber = parseInt(props.id.split('-')[0]);
+        
+        const nameNorm = props.gemname
           .toLowerCase()
           .normalize('NFD')
           .replace(/[\u0300-\u036f]/g, '')
           .replace(/[^a-z0-9]/g, '');
         
         await prisma.municipality.upsert({
-          where: { bfsNumber: fields.bfsnr },
+          where: { bfsNumber },
           create: {
-            bfsNumber: fields.bfsnr,
-            name: fields.gemeindename,
+            bfsNumber,
+            name: props.gemname,
             nameNorm,
-            canton: fields.kanton,
-            district: fields.bezirk,
-            lat,
-            lon,
+            canton: props.kanton,
+            district: null, // Not available in this dataset
+            lat: centerLat,
+            lon: centerLon,
             distanceFromHome: distance,
             scrapeStatus: 'pending',
           },
           update: {
-            name: fields.gemeindename,
+            name: props.gemname,
             nameNorm,
-            canton: fields.kanton,
-            district: fields.bezirk,
-            lat,
-            lon,
+            canton: props.kanton,
+            lat: centerLat,
+            lon: centerLon,
             distanceFromHome: distance,
           },
         });
@@ -102,7 +125,7 @@ app.post('/seed-municipalities', async (req, res) => {
       success: true,
       stored,
       skipped,
-      total: data.records.length,
+      total: data.features.length,
       message: `Seeded ${stored} municipalities within ${maxDistance}km`
     });
     
