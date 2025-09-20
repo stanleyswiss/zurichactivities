@@ -159,7 +159,7 @@ export class EnhancedMunicipalScraper {
     return {
       title: title.trim(),
       startTime,
-      endTime: this.parseDate(item.end_date || item.endDate, config.dateFormat),
+      endTime: this.parseDate(item.end_date || item.endDate, config.dateFormat) || undefined,
       description: item.description || item.body || item.text,
       venueName: item.venue || item.location || item.place,
       location: item.address || item.location_text,
