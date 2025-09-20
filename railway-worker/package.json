@@ -12,7 +12,8 @@
     "express": "^4.18.2",
     "cheerio": "^1.0.0-rc.12",
     "prisma": "^5.0.0",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "playwright": "^1.44.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

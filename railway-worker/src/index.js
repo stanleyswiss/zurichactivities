@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
+const crypto = require('crypto');
+const { chromium } = require('playwright');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -310,6 +312,194 @@ app.post('/find-event-pages', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+// Scrape a single municipality with Playwright (for JS-heavy pages)
+app.post('/scrape-municipality-playwright', async (req, res) => {
+  const { municipalityId, bfsNumber, waitSelector } = req.body || {};
+  try {
+    // Load municipality
+    let municipality = null;
+    if (municipalityId) {
+      municipality = await prisma.municipality.findUnique({ where: { id: municipalityId } });
+    } else if (bfsNumber) {
+      municipality = await prisma.municipality.findUnique({ where: { bfsNumber: parseInt(bfsNumber) } });
+    }
+    if (!municipality) {
+      return res.status(404).json({ success: false, error: 'Municipality not found' });
+    }
+    if (!municipality.eventPageUrl) {
+      return res.status(400).json({ success: false, error: 'Municipality has no eventPageUrl' });
+    }
+
+    // Launch headless Chromium
+    const browser = await chromium.launch({ args: ['--no-sandbox','--disable-setuid-sandbox'] });
+    const context = await browser.newContext({ locale: municipality.language || 'de-CH' });
+    const page = await context.newPage();
+
+    const targetUrl = municipality.eventPageUrl;
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    // allow network settle
+    try { await page.waitForLoadState('networkidle', { timeout: 10000 }); } catch {}
+    if (waitSelector) {
+      try { await page.waitForSelector(waitSelector, { timeout: 8000 }); } catch {}
+    }
+
+    // Evaluate DOM and extract
+    const cmsType = municipality.cmsType || 'custom';
+    const events = await page.evaluate((cmsType) => {
+      function pick(sel, root) {
+        const el = (root || document).querySelector(sel);
+        return el ? el.textContent.trim() : null;
+      }
+      function text(el, selList) {
+        for (const sel of selList) {
+          const v = pick(sel, el);
+          if (v) return v;
+        }
+        return null;
+      }
+      function parseDateText(t) {
+        if (!t) return null;
+        const m = t.match(/(\d{1,2})[\.\/-](\d{1,2})[\.\/-](\d{2,4})/);
+        if (m) {
+          const d = parseInt(m[1],10), mo = parseInt(m[2],10)-1, y = parseInt(m[3].length===2?('20'+m[3]):m[3],10);
+          const dt = new Date(Date.UTC(y,mo,d,12,0,0));
+          return dt.toISOString();
+        }
+        return null;
+      }
+      const configs = {
+        govis: {
+          container: '.content-teaser, .veranstaltung-item, .event-item, article',
+          title: ['.event-title','h3','h2'],
+          date: ['.event-date','.datum','.date-display-single','time'],
+          venue: ['.event-location','.ort','.location']
+        },
+        onegov_cloud: {
+          container: '.onegov-event, article[data-event-id]',
+          title: ['.event-title','h2','h3'],
+          date: ['time','.event-date','.date','[datetime]'],
+          venue: ['.event-location','.location']
+        },
+        typo3: {
+          container: '.tx-news-article, .news-list-item, .event, article',
+          title: ['.news-list-header h3','h3','.title'],
+          date: ['.news-list-date','.date','time'],
+          venue: ['.location','.event-location']
+        },
+        drupal: {
+          container: '.node-event, .views-row, article',
+          title: ['.field-name-title a','h3','h2'],
+          date: ['.date-display-single','time','.field--name-field-date'],
+          venue: ['.field--name-field-location','.event-location']
+        },
+        wordpress: {
+          container: '.tribe-events-calendar-list__event, .event, article',
+          title: ['.tribe-events-calendar-list__event-title','h3','h2','.entry-title'],
+          date: ['time','.event-date','.updated'],
+          venue: ['.tribe-events-calendar-list__event-venue-title','.event-location']
+        },
+        localcities: {
+          container: '.localcities-event, .lc-event-card, [data-municipality-id]',
+          title: ['.event-title','h3'],
+          date: ['time','.event-date','.date'],
+          venue: ['.event-location','.location']
+        },
+        custom: {
+          container: '.event, .veranstaltung, .agenda-item, article, .post, .entry',
+          title: ['.event-title','h3','h2','.title'],
+          date: ['time','.event-date','.datum','.date'],
+          venue: ['.event-location','.location','.ort']
+        }
+      };
+      const cfg = configs[cmsType] || configs.custom;
+      const nodes = Array.from(document.querySelectorAll(cfg.container));
+      const out = [];
+      for (const el of nodes.slice(0, 200)) {
+        const title = text(el, cfg.title);
+        const dateText = text(el, cfg.date);
+        if (!title || !dateText) continue;
+        const startIso = parseDateText(dateText);
+        out.push({
+          title,
+          dateText,
+          startIso,
+          venueName: text(el, cfg.venue),
+          url: (el.querySelector('a') && el.querySelector('a').href) || null
+        });
+      }
+      return out;
+    }, cmsType);
+
+    await browser.close();
+
+    // Upsert into DB with uniqueness hash
+    let saved = 0;
+    for (const ev of events) {
+      if (!ev.startIso) continue;
+      const normalizedTitle = ev.title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+      const dateKey = ev.startIso.split('T')[0];
+      const venueKey = (ev.venueName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const composite = `${municipality.id}-${normalizedTitle}-${dateKey}-${venueKey}`;
+      const uniquenessHash = crypto.createHash('sha256').update(composite).digest('hex');
+      try {
+        await prisma.event.upsert({
+          where: { uniquenessHash },
+          create: {
+            source: 'MUNICIPAL',
+            sourceEventId: null,
+            title: ev.title,
+            titleNorm: normalizedTitle,
+            description: null,
+            lang: municipality.language || 'de',
+            category: null,
+            startTime: new Date(ev.startIso),
+            endTime: null,
+            venueName: ev.venueName || null,
+            street: null,
+            postalCode: null,
+            city: municipality.name,
+            country: 'CH',
+            lat: null,
+            lon: null,
+            priceMin: null,
+            priceMax: null,
+            currency: 'CHF',
+            url: ev.url || municipality.eventPageUrl,
+            imageUrl: null,
+            uniquenessHash,
+            municipalityId: municipality.id,
+          },
+          update: {
+            title: ev.title,
+            startTime: new Date(ev.startIso),
+            venueName: ev.venueName || null,
+            url: ev.url || municipality.eventPageUrl,
+          },
+        });
+        saved++;
+      } catch (e) {
+        // continue on individual errors
+      }
+    }
+
+    await prisma.municipality.update({
+      where: { id: municipality.id },
+      data: {
+        lastScraped: new Date(),
+        lastSuccessful: saved > 0 ? new Date() : municipality.lastSuccessful,
+        eventCount: saved,
+        scrapeStatus: saved > 0 ? 'active' : 'failed',
+        scrapeError: saved === 0 ? 'No events found (playwright)' : null,
+      }
+    });
+
+    return res.json({ success: true, municipality: { id: municipality.id, name: municipality.name }, found: events.length, saved });
+  } catch (error) {
+    console.error('Playwright scrape error:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
