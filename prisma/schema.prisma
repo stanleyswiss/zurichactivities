@@ -20,6 +20,7 @@ model Municipality {
   websiteUrl        String?
   eventPageUrl      String?
   eventPagePattern  String?   // Pattern that worked (e.g. /veranstaltungen)
+  eventPageConfidence Float?
   cmsType           String?   // GOViS, i-web, wordpress, custom, etc.
   cmsVersion        String?   // CMS version if detected
   hasEvents         Boolean   @default(false) // Whether municipality publishes events
