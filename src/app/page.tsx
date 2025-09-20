@@ -126,7 +126,7 @@ export default function Home() {
             {scrapeResults && (
               <div className={`text-sm ${scrapeResults.success ? 'text-green-800' : 'text-red-800'}`}>
                 {scrapeResults.success 
-                  ? `✓ ${scrapeResults.summary?.total_events_saved || 0} new events saved`
+                  ? `✓ Scraped ${scrapeResults.summary?.municipalities_scraped || 0} municipalities, ${scrapeResults.summary?.total_events_saved || 0} new events saved`
                   : `✗ ${scrapeResults.error || 'Update failed'}`
                 }
               </div>
