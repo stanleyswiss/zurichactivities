@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { db } from './db';
-import { GOViSScraper } from './scrapers/govis-scraper';
+import { AIMunicipalScraper } from './scrapers/ai-municipal-scraper';
 import { PrismaClient } from '@prisma/client';
 
 interface ScraperResult {
@@ -54,10 +54,10 @@ export class EventScheduler {
     try {
       console.log(`Starting municipal scrape: ${limit} municipalities within ${maxDistance}km`);
 
-      // Use local municipal scraper with proper database connection handling
+      // Use AI-powered municipal scraper with proper database connection handling
       try {
-        const govisScraper = new GOViSScraper(db);
-        const result = await govisScraper.scrapeMultipleMunicipalities(limit, maxDistance);
+        const aiScraper = new AIMunicipalScraper(db);
+        const result = await aiScraper.scrapeMultipleMunicipalities(limit, maxDistance);
 
         results.push({
           source: 'MUNICIPAL',
