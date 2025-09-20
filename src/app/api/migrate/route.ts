@@ -109,6 +109,22 @@ async function ensureDatabaseTables(prisma: PrismaClient) {
       "eventPageUrl" TEXT,
       "eventPagePattern" TEXT,
       "cmsType" TEXT,
+      "cmsVersion" TEXT,
+      "hasEvents" BOOLEAN NOT NULL DEFAULT FALSE,
+      "scrapingMethod" TEXT,
+      "eventSelectors" TEXT,
+      "dateFormat" TEXT,
+      "timeFormat" TEXT,
+      language TEXT NOT NULL DEFAULT 'de',
+      multilingual BOOLEAN NOT NULL DEFAULT FALSE,
+      "apiEndpoint" TEXT,
+      "requiresJavascript" BOOLEAN NOT NULL DEFAULT FALSE,
+      "ajaxPagination" BOOLEAN NOT NULL DEFAULT FALSE,
+      "structuredData" BOOLEAN NOT NULL DEFAULT FALSE,
+      "robotsTxtCompliant" BOOLEAN NOT NULL DEFAULT TRUE,
+      "updateFrequency" TEXT,
+      "averageEventsMonthly" INTEGER,
+      "enhancedNotes" TEXT,
       lat DOUBLE PRECISION NOT NULL,
       lon DOUBLE PRECISION NOT NULL,
       "distanceFromHome" DOUBLE PRECISION NOT NULL,
@@ -123,11 +139,70 @@ async function ensureDatabaseTables(prisma: PrismaClient) {
     );
   `);
 
+  // Add enhanced columns to Municipality table if they don't exist
+  await prisma.$executeRawUnsafe(`
+    DO $$ 
+    BEGIN
+      -- Add enhanced columns one by one
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='cmsVersion') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "cmsVersion" TEXT;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='hasEvents') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "hasEvents" BOOLEAN NOT NULL DEFAULT FALSE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='scrapingMethod') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "scrapingMethod" TEXT;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='eventSelectors') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "eventSelectors" TEXT;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='dateFormat') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "dateFormat" TEXT;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='timeFormat') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "timeFormat" TEXT;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='language') THEN
+        ALTER TABLE "Municipality" ADD COLUMN language TEXT NOT NULL DEFAULT 'de';
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='multilingual') THEN
+        ALTER TABLE "Municipality" ADD COLUMN multilingual BOOLEAN NOT NULL DEFAULT FALSE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='apiEndpoint') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "apiEndpoint" TEXT;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='requiresJavascript') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "requiresJavascript" BOOLEAN NOT NULL DEFAULT FALSE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='ajaxPagination') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "ajaxPagination" BOOLEAN NOT NULL DEFAULT FALSE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='structuredData') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "structuredData" BOOLEAN NOT NULL DEFAULT FALSE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='robotsTxtCompliant') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "robotsTxtCompliant" BOOLEAN NOT NULL DEFAULT TRUE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='updateFrequency') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "updateFrequency" TEXT;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='averageEventsMonthly') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "averageEventsMonthly" INTEGER;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Municipality' AND column_name='enhancedNotes') THEN
+        ALTER TABLE "Municipality" ADD COLUMN "enhancedNotes" TEXT;
+      END IF;
+    END $$;
+  `);
+
   // Create indexes for Municipality (one by one to avoid multiple commands error)
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Municipality_canton_idx" ON "Municipality" (canton)`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Municipality_distanceFromHome_idx" ON "Municipality" ("distanceFromHome")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Municipality_scrapeStatus_idx" ON "Municipality" ("scrapeStatus")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Municipality_lastScraped_idx" ON "Municipality" ("lastScraped")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Municipality_hasEvents_idx" ON "Municipality" ("hasEvents")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Municipality_cmsType_idx" ON "Municipality" ("cmsType")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Municipality_language_idx" ON "Municipality" (language)`);
 
   // Add municipalityId column to Event table if it doesn't exist
   await prisma.$executeRawUnsafe(`
