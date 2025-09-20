@@ -45,3 +45,4 @@ prisma/migrations/
 CLAUDE_PRIVATE.md
 *_PRIVATE.md
 NOTES_PRIVATE.md
+.vercel
