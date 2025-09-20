@@ -1,0 +1,27 @@
+{
+  "municipalities": [
+    {
+      "bfs_number": "351",
+      "name": "Bern",
+      "canton": "BE",
+      "district": "Bern-Mittelland",
+      "latitude": 46.9480,
+      "longitude": 7.4474,
+      "population": 133883,
+      "website_url": "https://www.bern.ch",
+      "event_page_url": "https://www.bern.ch",
+      "event_page_pattern": "/",
+      "cms_type": "custom",
+      "has_events": true,
+      "scraping_method": "fallback",
+      "event_selectors": {
+        "container": "[class*='event'], [class*='veranstaltung']",
+        "title": "h2, h3, a",
+        "date": "[class*='date'], [class*='datum'], time",
+        "location": "[class*='location'], [class*='ort']"
+      },
+      "date_format": "dd.mm.yyyy",
+      "language": "de"
+    }
+  ]
+}
