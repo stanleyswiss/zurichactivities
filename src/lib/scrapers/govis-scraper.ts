@@ -181,7 +181,7 @@ export class GOViSScraper {
     return {
       title,
       description,
-      startDate: dates.start,
+      startDate: dates.start!, // Non-null assertion since we check above
       endDate: dates.end || undefined,
       location,
       url,
@@ -366,34 +366,40 @@ export class GOViSScraper {
   }
 
   async scrapeMultipleMunicipalities(limit: number = 10, maxDistance: number = 50) {
-    const municipalities = await this.prisma.municipality.findMany({
-      where: {
-        eventPageUrl: { not: null },
-        cmsType: 'govis',
-        distanceFromHome: { lte: maxDistance },
-        OR: [
-          { lastScraped: null },
-          { 
-            lastScraped: { 
-              lt: new Date(Date.now() - 24 * 60 * 60 * 1000) // 24 hours ago
-            } 
-          },
+    console.log(`GOViS scraper: Looking for municipalities with limit=${limit}, maxDistance=${maxDistance}`);
+    
+    try {
+      const municipalities = await this.prisma.municipality.findMany({
+        where: {
+          eventPageUrl: { not: null },
+          cmsType: 'govis',
+          distanceFromHome: { lte: maxDistance },
+          OR: [
+            { lastScraped: null },
+            { 
+              lastScraped: { 
+                lt: new Date(Date.now() - 24 * 60 * 60 * 1000) // 24 hours ago
+              } 
+            },
+          ],
+        },
+        orderBy: [
+          { lastScraped: 'asc' },
+          { distanceFromHome: 'asc' },
         ],
-      },
-      orderBy: [
-        { lastScraped: 'asc' },
-        { distanceFromHome: 'asc' },
-      ],
-      take: limit,
-    });
-    
-    console.log(`Scraping ${municipalities.length} GOViS municipalities...`);
-    
-    const results = {
-      success: 0,
-      failed: 0,
-      totalEvents: 0,
-    };
+        take: limit,
+      });
+      
+      console.log(`GOViS scraper: Found ${municipalities.length} municipalities to scrape`);
+      console.log(`GOViS scraper: Municipalities found:`, municipalities.map(m => ({ name: m.name, eventPageUrl: m.eventPageUrl, cmsType: m.cmsType, distance: m.distanceFromHome })));
+      
+      console.log(`Scraping ${municipalities.length} GOViS municipalities...`);
+      
+      const results = {
+        success: 0,
+        failed: 0,
+        totalEvents: 0,
+      };
     
     for (const municipality of municipalities) {
       try {
@@ -410,5 +416,14 @@ export class GOViSScraper {
     }
     
     return results;
+    
+    } catch (dbError) {
+      console.error('GOViS scraper: Database query failed:', dbError);
+      return {
+        success: 0,
+        failed: 0,
+        totalEvents: 0,
+      };
+    }
   }
 }
