@@ -182,7 +182,7 @@ export class GOViSScraper {
       title,
       description,
       startDate: dates.start,
-      endDate: dates.end,
+      endDate: dates.end || undefined,
       location,
       url,
       imageUrl,
@@ -281,7 +281,7 @@ export class GOViSScraper {
           events.push({
             title,
             startDate: dates.start,
-            endDate: dates.end,
+            endDate: dates.end || undefined,
             location,
           });
         }
