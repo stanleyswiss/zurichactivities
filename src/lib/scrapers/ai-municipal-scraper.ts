@@ -276,7 +276,7 @@ export class AIMunicipalScraper {
     const eventKeywords = ['veranstaltung', 'event', 'termin', 'festival', 'konzert', 'workshop', 'kurs', 'meeting', 'treffen'];
     
     // Find all elements containing dates
-    const elementsWithDates: cheerio.Cheerio<cheerio.Element>[] = [];
+    const elementsWithDates: cheerio.Cheerio<any>[] = [];
     $('*').each((_, element) => {
       const text = $(element).text();
       if (dateRegex.test(text) && eventKeywords.some(keyword => text.toLowerCase().includes(keyword))) {
@@ -299,7 +299,7 @@ export class AIMunicipalScraper {
     };
   }
 
-  private extractEventFromElement($: cheerio.CheerioAPI, element: cheerio.Cheerio<cheerio.Element>): ExtractedEvent | null {
+  private extractEventFromElement($: cheerio.CheerioAPI, element: cheerio.Cheerio<any>): ExtractedEvent | null {
     const text = element.text().trim();
     if (!text || text.length < 10) return null;
     
@@ -352,7 +352,7 @@ export class AIMunicipalScraper {
     };
   }
 
-  private extractEventFromTableRow($: cheerio.CheerioAPI, cells: cheerio.Cheerio<cheerio.Element>): ExtractedEvent | null {
+  private extractEventFromTableRow($: cheerio.CheerioAPI, cells: cheerio.Cheerio<any>): ExtractedEvent | null {
     if (cells.length < 2) return null;
     
     const dateText = cells.eq(0).text().trim();
