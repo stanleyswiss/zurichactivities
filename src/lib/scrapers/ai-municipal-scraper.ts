@@ -53,11 +53,11 @@ export class AIMunicipalScraper {
       
       // Use multiple extraction strategies and pick the best one
       const strategies = [
-        () => this.extractFromStructuredData($),
-        () => this.extractFromCommonSelectors($),
-        () => this.extractFromTables($),
-        () => this.extractFromLists($),
-        () => this.extractFromCards($),
+        () => Promise.resolve(this.extractFromStructuredData($)),
+        () => Promise.resolve(this.extractFromCommonSelectors($)),
+        () => Promise.resolve(this.extractFromTables($)),
+        () => Promise.resolve(this.extractFromLists($)),
+        () => Promise.resolve(this.extractFromCards($)),
         () => this.extractWithAIHeuristics($, municipality)
       ];
       
@@ -268,7 +268,7 @@ export class AIMunicipalScraper {
     };
   }
 
-  private async extractWithAIHeuristics($: cheerio.CheerioAPI, municipality: Municipality): EventExtractionResult {
+  private async extractWithAIHeuristics($: cheerio.CheerioAPI, municipality: Municipality): Promise<EventExtractionResult> {
     const events: ExtractedEvent[] = [];
     
     // Advanced heuristics: look for date patterns and event-like content
