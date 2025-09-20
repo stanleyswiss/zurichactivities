@@ -36,11 +36,7 @@ export const CATEGORIES = {
 export type Category = typeof CATEGORIES[keyof typeof CATEGORIES];
 
 export const SOURCES = {
-  ST: 'ST',
-  ZURICH: 'ZURICH', 
-  LIMMATTAL: 'LIMMATTAL',
-  MUNICIPAL: 'MUNICIPAL',
-  ALPSABZUG: 'ALPSABZUG'
+  MUNICIPAL: 'MUNICIPAL'
 } as const;
 
 export type Source = typeof SOURCES[keyof typeof SOURCES];

@@ -10,14 +10,45 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Municipality {
+  id                String    @id @default(cuid())
+  bfsNumber         Int       @unique // Official Swiss BFS municipality number
+  name              String
+  nameNorm          String    // Normalized name for searching
+  canton            String
+  district          String?
+  websiteUrl        String?
+  eventPageUrl      String?
+  eventPagePattern  String?   // Pattern that worked (e.g. /veranstaltungen)
+  cmsType           String?   // GOViS, i-web, wordpress, custom, etc.
+  lat               Float
+  lon               Float
+  distanceFromHome  Float     // Distance from Schlieren in km
+  population        Int?
+  lastScraped       DateTime?
+  lastSuccessful    DateTime?
+  scrapeStatus      String    @default("pending") // pending, active, failed, disabled
+  scrapeError       String?
+  eventCount        Int       @default(0) // Count of events found
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  events            Event[]   @relation("MunicipalityEvents")
+  
+  @@index([canton])
+  @@index([distanceFromHome])
+  @@index([scrapeStatus])
+  @@index([lastScraped])
+}
+
 model Event {
-  id               String   @id @default(cuid())
-  source           String   // 'ST', 'ZURICH', 'LIMMATTAL', 'MUNICIPAL'
+  id               String        @id @default(cuid())
+  source           String        // 'ST', 'ZURICH', 'LIMMATTAL', 'MUNICIPAL'
   sourceEventId    String?
   title            String
-  titleNorm        String   // normalized for dedup
+  titleNorm        String        // normalized for dedup
   description      String?
-  lang             String   @default("de")
+  lang             String        @default("de")
   category         String?
   startTime        DateTime
   endTime          DateTime?
@@ -25,22 +56,26 @@ model Event {
   street           String?
   postalCode       String?
   city             String?
-  country          String   @default("CH")
+  country          String        @default("CH")
   lat              Float?
   lon              Float?
   priceMin         Float?
   priceMax         Float?
-  currency         String   @default("CHF")
+  currency         String        @default("CHF")
   url              String?
   imageUrl         String?
-  uniquenessHash   String   @unique
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  uniquenessHash   String        @unique
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  
+  municipalityId   String?
+  municipality     Municipality? @relation("MunicipalityEvents", fields: [municipalityId], references: [id])
 
   @@index([startTime])
   @@index([lat, lon])
   @@index([source])
   @@index([category])
+  @@index([municipalityId])
 }
 
 model GeocodeCache {

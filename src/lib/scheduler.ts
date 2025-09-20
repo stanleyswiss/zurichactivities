@@ -1,9 +1,7 @@
 import cron from 'node-cron';
-import { STProxyScraper } from './scrapers/st-proxy';
-import { LimmattalScraper } from './scrapers/limmattal';
 import { db } from './db';
-import { generateUniquenessHash, normalizeTitle } from './utils/deduplication';
-import { RawEvent } from '@/types/event';
+import { GOViSScraper } from './scrapers/govis-scraper';
+import { PrismaClient } from '@prisma/client';
 
 interface ScraperResult {
   source: string;
@@ -12,11 +10,12 @@ interface ScraperResult {
   eventsSaved: number;
   duration: number;
   error?: string;
+  municipalitiesScraped?: number;
 }
 
 export class EventScheduler {
   private isRunning = false;
-  private lastRuns: Record<string, Date> = {};
+  private lastRun: Date | null = null;
 
   constructor() {
     this.initializeScheduler();
@@ -29,208 +28,81 @@ export class EventScheduler {
       console.log('Vercel environment detected: internal cron disabled. Use Vercel Cron.');
       return;
     }
+    
     // Daily at 6 AM (for non-serverless/local usage)
     cron.schedule('0 6 * * *', async () => {
-      console.log('Running scheduled scrape at', new Date());
-      await this.runAllScrapers();
+      console.log('Running scheduled municipal scrape at', new Date());
+      await this.runMunicipalScrapers();
     });
-    console.log('Event scheduler initialized - will run daily at 6:00 AM (non-Vercel)');
+    
+    console.log('Municipal event scheduler initialized - will run daily at 6:00 AM (non-Vercel)');
   }
 
-  async runAllScrapers(sources?: string[], force: boolean = false): Promise<ScraperResult[]> {
-    if (this.isRunning && !force) {
+  async runMunicipalScrapers(
+    limit: number = 50, 
+    maxDistance: number = 100,
+    cmsType: string = 'all'
+  ): Promise<ScraperResult[]> {
+    if (this.isRunning) {
       throw new Error('Scraping is already in progress');
     }
 
     this.isRunning = true;
+    const startTime = Date.now();
     const results: ScraperResult[] = [];
-    let sourcesToRun = sources;
-    if (!sourcesToRun || sourcesToRun.length === 0) {
-      const envList = process.env.SOURCES_ENABLED?.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-      sourcesToRun = (envList && envList.length > 0) ? envList : ['LIMMATTAL', 'ST'];
-    }
 
-    console.log(`Starting scrape for sources: ${sourcesToRun.join(', ')}`);
+    try {
+      console.log(`Starting municipal scrape: ${limit} municipalities within ${maxDistance}km`);
 
-    for (const source of sourcesToRun) {
-      const startTime = Date.now();
-      let result: ScraperResult = {
-        source,
+      // For now, we only have GOViS scraper implemented
+      const govisScraper = new GOViSScraper(db);
+      const result = await govisScraper.scrapeMultipleMunicipalities(limit, maxDistance);
+
+      results.push({
+        source: 'MUNICIPAL',
+        success: result.success > 0,
+        eventsFound: result.totalEvents,
+        eventsSaved: result.totalEvents, // GOViS scraper saves directly
+        duration: Date.now() - startTime,
+        municipalitiesScraped: result.success + result.failed,
+      });
+
+      this.lastRun = new Date();
+      
+      console.log(`Municipal scrape completed: ${result.success} succeeded, ${result.failed} failed, ${result.totalEvents} events found`);
+
+    } catch (error) {
+      console.error('Municipal scraper error:', error);
+      results.push({
+        source: 'MUNICIPAL',
         success: false,
         eventsFound: 0,
         eventsSaved: 0,
-        duration: 0
-      };
-
-      try {
-        const events = await this.scrapeSource(source);
-        result.eventsFound = events.length;
-
-        if (events.length > 0) {
-          const savedCount = await this.saveEvents(events, force);
-          result.eventsSaved = savedCount;
-        }
-        
-        // Special handling for ST scraper that saves directly to DB via Railway
-        if (source === 'ST' && (this as any)._lastSTResult) {
-          result.eventsFound = (this as any)._lastSTResult.eventsFound || 0;
-          result.eventsSaved = (this as any)._lastSTResult.eventsSaved || 0;
-          delete (this as any)._lastSTResult;
-        }
-
-
-        result.success = true;
-        this.lastRuns[source] = new Date();
-
-        console.log(`${source}: Found ${result.eventsFound}, saved ${result.eventsSaved} events`);
-      } catch (error) {
-        result.error = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`Error scraping ${source}:`, error);
-      }
-
-      result.duration = Date.now() - startTime;
-      results.push(result);
-
-      // Reduce delay between scrapers to stay within time limits
-      if (sourcesToRun.indexOf(source) < sourcesToRun.length - 1) {
-        await this.delay(500); // Reduced from 2000ms to 500ms
-      }
+        duration: Date.now() - startTime,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      this.isRunning = false;
     }
-
-    this.isRunning = false;
-
-    const totalFound = results.reduce((sum, r) => sum + r.eventsFound, 0);
-    const totalSaved = results.reduce((sum, r) => sum + r.eventsSaved, 0);
-    console.log(`Scrape completed: ${totalFound} found, ${totalSaved} saved`);
 
     return results;
   }
 
-  private async scrapeSource(source: string): Promise<RawEvent[]> {
-    // Timeout for individual scrapers - ST needs more time for pagination
-    const timeoutMs = source === 'ST' ? 40000 : 10000; // 40s for ST (pagination), 10s for others
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error(`${source} scraper timed out after ${timeoutMs/1000} seconds`)), timeoutMs);
-    });
-
-    try {
-      const scraperPromise = this.executeScraper(source);
-      return await Promise.race([scraperPromise, timeoutPromise]);
-    } catch (error) {
-      console.error(`${source} scraper error:`, error);
-      throw error;
-    }
-  }
-
-  private async executeScraper(source: string): Promise<RawEvent[]> {
-    switch (source) {
-      case 'ST':
-        // Use Railway proxy for ST scraping (with geocoding)
-        const stProxy = new STProxyScraper();
-        const events = await stProxy.scrapeEvents();
-        // Store Railway result for reporting
-        if ((stProxy as any)._result) {
-          (this as any)._lastSTResult = (stProxy as any)._result;
-        }
-        return events;
-      case 'LIMMATTAL':
-        const limmattalScraper = new LimmattalScraper();
-        return await limmattalScraper.scrapeEvents();
-      // Only clean data sources are supported
-      default:
-        throw new Error(`Unknown source: ${source} - only ST and LIMMATTAL are supported`);
-    }
-  }
-
-  private async saveEvents(events: RawEvent[], force: boolean = false): Promise<number> {
-    let savedCount = 0;
-
-    for (const event of events) {
-      try {
-        // Content filter: drop political/administrative events and unwanted entries
-        if (!this.isAllowedEvent(event)) {
-          continue;
-        }
-        const uniquenessHash = generateUniquenessHash(event);
-        const titleNorm = normalizeTitle(event.title);
-
-        const existingEvent = await db.event.findUnique({
-          where: { uniquenessHash }
-        });
-
-        if (!existingEvent || force) {
-          if (existingEvent && force) {
-            await db.event.update({
-              where: { id: existingEvent.id },
-              data: {
-                ...event,
-                titleNorm,
-                uniquenessHash,
-                updatedAt: new Date()
-              }
-            });
-          } else {
-            await db.event.create({
-              data: {
-                ...event,
-                titleNorm,
-                uniquenessHash
-              }
-            });
-          }
-          savedCount++;
-        }
-      } catch (error) {
-        console.error(`Error saving event: ${event.title}`, error);
-      }
-    }
-
-    return savedCount;
-  }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  private isAlpsabzugEvent(title: string, description: string): boolean {
-    const combinedText = `${title} ${description}`.toLowerCase();
-    
-    // Primary Alpsabzug keywords
-    const alpsabzugTerms = [
-      'alpabzug', 'alpsabzug', 'alpabfahrt', 'alpsabfahrt',
-      'viehscheid', 'viehschied', 'désalpe', 'desalpe',
-      'alpfest', 'älplerfest', 'sennen', 'sennerei',
-      'alpaufzug', 'alpauftrieb', 'tierumfahrt',
-      'alpweide', 'almabtrieb', 'cattle descent'
-    ];
-
-    return alpsabzugTerms.some(term => combinedText.includes(term));
-  }
-
-  // Basic content filtering: exclude political/administrative items; optionally allowlist categories
-  private isAllowedEvent(event: RawEvent): boolean {
-    const text = `${event.title} ${event.description ?? ''}`.toLowerCase();
-    const blocklist = [
-      'gemeindeversammlung', 'abstimmung', 'wahlen', 'wahl', 'politik', 'politisch',
-      'stadtrat', 'gemeinderat', 'einwohnerrat', 'parlament', 'parteitag', 'versammlung der partei',
-      'behörde', 'amt', 'verordnung', 'amtliche', 'sitzung'
-    ];
-    if (blocklist.some(word => text.includes(word))) return false;
-
-    // If category exists and is one of the known categories, allow
-    // Otherwise, allow by default to not over-prune; scrapers should set category
-    return true;
+  // Compatibility method for existing API
+  async runAllScrapers(sources?: string[], force: boolean = false): Promise<ScraperResult[]> {
+    // Always run municipal scrapers regardless of requested sources
+    return this.runMunicipalScrapers();
   }
 
   getStatus() {
     return {
       isRunning: this.isRunning,
-      lastRuns: { ...this.lastRuns }
+      lastRun: this.lastRun,
     };
   }
 
-  getLastRun(source: string): Date | null {
-    return this.lastRuns[source] || null;
+  getLastRun(): Date | null {
+    return this.lastRun;
   }
 }
 

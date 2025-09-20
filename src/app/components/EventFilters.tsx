@@ -16,10 +16,7 @@ const CATEGORY_LABELS = {
 } as const;
 
 const SOURCE_LABELS = {
-  [SOURCES.ST]: 'Switzerland Tourism',
-  [SOURCES.LIMMATTAL]: 'Limmattal Regional',
-  [SOURCES.ZURICH]: 'Zurich Tourism',
-  [SOURCES.MUNICIPAL]: 'Municipal'
+  [SOURCES.MUNICIPAL]: 'Municipal Events'
 } as const;
 
 interface EventFiltersProps {
