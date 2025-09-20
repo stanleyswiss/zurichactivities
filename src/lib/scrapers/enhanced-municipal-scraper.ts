@@ -1,40 +1,10 @@
 import * as cheerio from 'cheerio';
-
-export interface MunicipalityScrapingConfig {
-  id: string;
-  name: string;
-  eventPageUrl: string;
-  cmsType: string;
-  scrapingMethod: string;
-  eventSelectors?: {
-    container?: string;
-    title?: string;
-    date?: string;
-    location?: string;
-    organizer?: string;
-    description?: string;
-    price?: string;
-    registration?: string;
-  } | null;
-  apiEndpoint?: string | null;
-  dateFormat?: string;
-  language: string;
-  requiresJavascript?: boolean;
-  notes?: string;
-}
-
-export interface ExtractedEvent {
-  title: string;
-  startTime: Date;
-  endTime?: Date;
-  description?: string;
-  venueName?: string;
-  location?: string;
-  organizer?: string;
-  price?: string;
-  url?: string;
-  confidence: number;
-}
+import {
+  MunicipalityScrapingConfig,
+  StructuredMunicipalEvent as ExtractedEvent,
+} from './municipal-types';
+import { fetchMunicipalEventsFromAPI } from './municipal-api';
+import { parseMunicipalDate } from './municipal-utils';
 
 export class EnhancedMunicipalScraper {
   private timeout = 10000;
@@ -45,7 +15,7 @@ export class EnhancedMunicipalScraper {
 
       // Use API endpoint if available
       if (config.apiEndpoint && config.scrapingMethod === 'api-extraction') {
-        return await this.scrapeFromAPI(config);
+        return await fetchMunicipalEventsFromAPI(config);
       }
 
       // Fetch HTML content
@@ -101,75 +71,6 @@ export class EnhancedMunicipalScraper {
     return await response.text();
   }
 
-  private async scrapeFromAPI(config: MunicipalityScrapingConfig): Promise<ExtractedEvent[]> {
-    try {
-      const response = await fetch(config.apiEndpoint!, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'SwissEventsBot/1.0',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return this.parseAPIResponse(data, config);
-    } catch (error) {
-      console.error(`API scraping failed for ${config.name}:`, error);
-      return [];
-    }
-  }
-
-  private parseAPIResponse(data: any, config: MunicipalityScrapingConfig): ExtractedEvent[] {
-    const events: ExtractedEvent[] = [];
-
-    // Handle different API response formats
-    const eventsList = Array.isArray(data) ? data : 
-                      data.events || data.items || data.results || 
-                      (data.data && Array.isArray(data.data) ? data.data : []);
-
-    for (const item of eventsList) {
-      try {
-        const event = this.parseEventFromAPI(item, config);
-        if (event) {
-          events.push(event);
-        }
-      } catch (error) {
-        console.warn(`Error parsing API event:`, error);
-      }
-    }
-
-    return events;
-  }
-
-  private parseEventFromAPI(item: any, config: MunicipalityScrapingConfig): ExtractedEvent | null {
-    // Common API field mappings
-    const title = item.title || item.name || item.subject || item.event_name;
-    const startTime = this.parseDate(
-      item.start_date || item.startDate || item.date || item.event_date, 
-      config.dateFormat
-    );
-
-    if (!title || !startTime) {
-      return null;
-    }
-
-    return {
-      title: title.trim(),
-      startTime,
-      endTime: this.parseDate(item.end_date || item.endDate, config.dateFormat) || undefined,
-      description: item.description || item.body || item.text,
-      venueName: item.venue || item.location || item.place,
-      location: item.address || item.location_text,
-      organizer: item.organizer || item.organization,
-      price: this.extractPrice(item.price || item.cost || item.fee),
-      url: item.url || item.link || item.event_url,
-      confidence: 0.9,
-    };
-  }
-
   private scrapeGOViS($: cheerio.CheerioAPI, config: MunicipalityScrapingConfig): ExtractedEvent[] {
     const events: ExtractedEvent[] = [];
     const selectors = config.eventSelectors || {};
@@ -188,7 +89,7 @@ export class EnhancedMunicipalScraper {
 
         if (!title || !dateText) return;
 
-        const startTime = this.parseDate(dateText, config.dateFormat);
+        const startTime = parseMunicipalDate(dateText, config.dateFormat);
         if (!startTime) return;
 
         events.push({
@@ -223,7 +124,9 @@ export class EnhancedMunicipalScraper {
         
         // Try to get datetime attribute if available
         const datetimeAttr = $event.find('time[datetime]').attr('datetime');
-        const startTime = datetimeAttr ? new Date(datetimeAttr) : this.parseDate(dateText, config.dateFormat);
+        const startTime = datetimeAttr
+          ? new Date(datetimeAttr)
+          : parseMunicipalDate(dateText, config.dateFormat);
 
         if (!title || !startTime) return;
 
@@ -267,7 +170,7 @@ export class EnhancedMunicipalScraper {
 
           if (!title || !dateText) return;
 
-          const startTime = this.parseDate(dateText, config.dateFormat);
+          const startTime = parseMunicipalDate(dateText, config.dateFormat);
           if (!startTime) return;
 
           events.push({
@@ -303,7 +206,7 @@ export class EnhancedMunicipalScraper {
 
         if (!title || !dateText) return;
 
-        const startTime = this.parseDate(dateText, config.dateFormat);
+        const startTime = parseMunicipalDate(dateText, config.dateFormat);
         if (!startTime) return;
 
         events.push({
@@ -344,7 +247,7 @@ export class EnhancedMunicipalScraper {
 
           if (!title || !dateText) return;
 
-          const startTime = this.parseDate(dateText, config.dateFormat);
+          const startTime = parseMunicipalDate(dateText, config.dateFormat);
           if (!startTime) return;
 
           events.push({
@@ -379,7 +282,7 @@ export class EnhancedMunicipalScraper {
 
         if (!title || !dateText) return;
 
-        const startTime = this.parseDate(dateText, config.dateFormat);
+        const startTime = parseMunicipalDate(dateText, config.dateFormat);
         if (!startTime) return;
 
         events.push({
@@ -415,7 +318,7 @@ export class EnhancedMunicipalScraper {
 
         if (!title || !dateText) return;
 
-        const startTime = this.parseDate(dateText, config.dateFormat);
+        const startTime = parseMunicipalDate(dateText, config.dateFormat);
         if (!startTime) return;
 
         events.push({
@@ -466,7 +369,7 @@ export class EnhancedMunicipalScraper {
 
         if (!title || !dateText) return;
 
-        const startTime = this.parseDate(dateText, config.dateFormat);
+        const startTime = parseMunicipalDate(dateText, config.dateFormat);
         if (!startTime) return;
 
         events.push({
@@ -500,44 +403,4 @@ export class EnhancedMunicipalScraper {
     return null;
   }
 
-  private parseDate(dateText: string | null | undefined, format?: string): Date | null {
-    if (!dateText) return null;
-
-    // Clean the date text
-    const cleaned = dateText.trim().replace(/\s+/g, ' ');
-
-    // Try ISO format first
-    if (/^\d{4}-\d{2}-\d{2}/.test(cleaned)) {
-      const date = new Date(cleaned);
-      if (!isNaN(date.getTime())) return date;
-    }
-
-    // Swiss date formats: DD.MM.YYYY
-    const swissMatch = cleaned.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-    if (swissMatch) {
-      const [, day, month, year] = swissMatch;
-      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      if (!isNaN(date.getTime())) return date;
-    }
-
-    // Try parsing with Date constructor
-    const fallbackDate = new Date(cleaned);
-    if (!isNaN(fallbackDate.getTime())) {
-      return fallbackDate;
-    }
-
-    return null;
-  }
-
-  private extractPrice(priceText: string | null | undefined): string | undefined {
-    if (!priceText) return undefined;
-    
-    // Look for Swiss price patterns: CHF, Fr., .-
-    const priceMatch = priceText.match(/(CHF|Fr\.?)\s*(\d+(?:[.,]\d{2})?)|(\d+(?:[.,]\d{2})?)\s*\.?-?/);
-    if (priceMatch) {
-      return priceText.trim();
-    }
-    
-    return undefined;
-  }
 }
