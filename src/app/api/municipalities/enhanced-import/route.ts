@@ -46,6 +46,8 @@ interface EnhancedMunicipalityData {
   notes?: string;
 }
 
+export const dynamic = 'force-dynamic';
+
 function isAuthorized(request: NextRequest) {
   const token = process.env.SCRAPE_TOKEN;
   if (!token) return false;
