@@ -2,6 +2,19 @@ import { PrismaClient, Event, Municipality } from '@prisma/client';
 import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import { calculateDistance } from '../utils/distance';
+import {
+  resolveCMSConfiguration,
+  mergeEventSelectors,
+  resolveApiEndpoint,
+  getDefaultScrapingMethod,
+} from './municipal-cms-config';
+import { fetchMunicipalEventsFromAPI } from './municipal-api';
+import {
+  MunicipalityScrapingConfig,
+  StructuredMunicipalEvent,
+  MunicipalityEventSelectors,
+} from './municipal-types';
+import { parseMunicipalDate } from './municipal-utils';
 
 const SCHLIEREN_COORDS = {
   lat: parseFloat(process.env.NEXT_PUBLIC_SCHLIEREN_LAT || '47.396'),
@@ -41,38 +54,104 @@ export class AIMunicipalScraper {
     }
 
     console.log(`🤖 AI Scraping events from ${municipality.name} (${municipality.eventPageUrl})`);
-    
+
+    const cmsConfig = resolveCMSConfiguration(municipality.cmsType);
+    const selectors = mergeEventSelectors(municipality, cmsConfig);
+    const apiEndpoint = resolveApiEndpoint(municipality, cmsConfig);
+    const scrapingMethod =
+      getDefaultScrapingMethod(municipality, cmsConfig) ||
+      municipality.scrapingMethod ||
+      (apiEndpoint ? 'api-extraction' : 'ai-hybrid');
+
+    const requiresDynamic = Boolean(municipality.requiresJavascript || municipality.ajaxPagination);
+    let usedHeadless = false;
+    let headlessMessage: string | null = null;
+    let detectedCmsType = municipality.cmsType || 'unknown';
+
     try {
-      const response = await fetch(municipality.eventPageUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      if (apiEndpoint) {
+        const apiResult = await this.tryScrapeViaApi(
+          municipality,
+          selectors,
+          apiEndpoint,
+          scrapingMethod
+        );
+
+        if (apiResult) {
+          const cmsForUpdate = municipality.cmsType || detectedCmsType;
+          await this.updateMunicipalityAfterScrape(municipality, apiResult.dbEvents, {
+            cmsType: cmsForUpdate,
+            selectors,
+            apiEndpoint,
+            scrapingMethod,
+            usedHeadless: false,
+            headlessMessage: null,
+          });
+
+          return apiResult.dbEvents;
+        }
+
+        console.log(
+          `API endpoint for ${municipality.name} returned no events, continuing with HTML strategies.`
+        );
       }
 
-      const html = await response.text();
+      let html: string | null = null;
+
+      if (requiresDynamic) {
+        try {
+          html = await this.renderWithHeadless(municipality.eventPageUrl);
+          usedHeadless = true;
+          headlessMessage = `Headless fallback executed at ${new Date().toISOString()}`;
+          console.log(`Headless rendering succeeded for ${municipality.name}.`);
+        } catch (headlessError) {
+          console.warn(`Headless rendering failed for ${municipality.name}:`, headlessError);
+        }
+      }
+
+      if (!html) {
+        const response = await fetch(municipality.eventPageUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        html = await response.text();
+      }
+
       const $ = cheerio.load(html);
-      
-      // Use multiple extraction strategies and pick the best one
-      const strategies = [
+      detectedCmsType = municipality.cmsType || this.detectCMSType($, municipality.eventPageUrl);
+
+      const strategies: Array<() => Promise<EventExtractionResult>> = [];
+
+      if (selectors) {
+        strategies.push(() =>
+          Promise.resolve(this.extractFromConfiguredSelectors($, selectors, municipality))
+        );
+      }
+
+      strategies.push(
         () => Promise.resolve(this.extractFromStructuredData($)),
         () => Promise.resolve(this.extractFromCommonSelectors($)),
         () => Promise.resolve(this.extractFromTables($)),
         () => Promise.resolve(this.extractFromLists($)),
         () => Promise.resolve(this.extractFromCards($)),
         () => this.extractWithAIHeuristics($, municipality)
-      ];
-      
+      );
+
       let bestResult: EventExtractionResult = {
         events: [],
         confidence: 0,
         method: 'none',
         errors: []
       };
-      
+
       for (const strategy of strategies) {
         try {
           const result = await strategy();
-          console.log(`Strategy ${result.method}: ${result.events.length} events, confidence: ${result.confidence}`);
-          
+          console.log(
+            `Strategy ${result.method}: ${result.events.length} events, confidence: ${result.confidence}`
+          );
+
           if (result.confidence > bestResult.confidence && result.events.length > 0) {
             bestResult = result;
           }
@@ -80,45 +159,316 @@ export class AIMunicipalScraper {
           console.log(`Strategy failed:`, error);
         }
       }
-      
-      console.log(`🎯 Best strategy: ${bestResult.method} with ${bestResult.events.length} events (confidence: ${bestResult.confidence})`);
-      
-      // Convert to database events
-      const dbEvents: Event[] = [];
-      for (const event of bestResult.events) {
-        const dbEvent = await this.convertToDbEvent(event, municipality);
-        if (dbEvent) {
-          dbEvents.push(dbEvent);
-        }
-      }
-      
-      // Update municipality stats
-      await this.prisma.municipality.update({
-        where: { id: municipality.id },
-        data: {
-          lastScraped: new Date(),
-          lastSuccessful: new Date(),
-          eventCount: dbEvents.length,
-          scrapeStatus: 'active',
-          scrapeError: null,
-          cmsType: this.detectCMSType($, municipality.eventPageUrl),
-        },
+
+      console.log(
+        `🎯 Best strategy: ${bestResult.method} with ${bestResult.events.length} events (confidence: ${bestResult.confidence})`
+      );
+
+      const dbEvents = await this.persistExtractedEvents(bestResult.events, municipality);
+
+      await this.updateMunicipalityAfterScrape(municipality, dbEvents, {
+        cmsType: detectedCmsType,
+        selectors,
+        apiEndpoint,
+        scrapingMethod,
+        usedHeadless,
+        headlessMessage,
       });
-      
+
       return dbEvents;
-      
     } catch (error) {
       console.error(`Error scraping ${municipality.name}:`, error);
-      
+
+      const baseMessage = error instanceof Error ? error.message : 'Unknown error';
+      const combinedMessage =
+        usedHeadless && headlessMessage ? `${baseMessage} | ${headlessMessage}` : baseMessage;
+
       await this.prisma.municipality.update({
         where: { id: municipality.id },
         data: {
           lastScraped: new Date(),
           scrapeStatus: 'failed',
-          scrapeError: error instanceof Error ? error.message : 'Unknown error',
+          scrapeError: combinedMessage,
         },
       });
-      
+
+      throw error;
+    }
+  }
+
+  private async tryScrapeViaApi(
+    municipality: Municipality,
+    selectors: MunicipalityEventSelectors | null,
+    apiEndpoint: string,
+    scrapingMethod: string
+  ): Promise<{ extracted: ExtractedEvent[]; dbEvents: Event[] } | null> {
+    const config = this.buildApiScrapingConfig(
+      municipality,
+      selectors,
+      apiEndpoint,
+      scrapingMethod
+    );
+    const structuredEvents = await fetchMunicipalEventsFromAPI(config);
+
+    if (!structuredEvents || structuredEvents.length === 0) {
+      return null;
+    }
+
+    console.log(
+      `API extraction returned ${structuredEvents.length} events for ${municipality.name}`
+    );
+
+    const extractedEvents = this.mapStructuredEventsToExtracted(structuredEvents);
+    if (extractedEvents.length === 0) {
+      return null;
+    }
+
+    const dbEvents = await this.persistExtractedEvents(extractedEvents, municipality);
+    if (dbEvents.length === 0) {
+      console.log(
+        `API extraction for ${municipality.name} yielded events outside the persistence window`
+      );
+      return null;
+    }
+
+    console.log(`Persisted ${dbEvents.length} API events for ${municipality.name}`);
+
+    return { extracted: extractedEvents, dbEvents };
+  }
+
+  private buildApiScrapingConfig(
+    municipality: Municipality,
+    selectors: MunicipalityEventSelectors | null,
+    apiEndpoint: string,
+    scrapingMethod: string
+  ): MunicipalityScrapingConfig {
+    return {
+      id: municipality.id,
+      name: municipality.name,
+      eventPageUrl: municipality.eventPageUrl!,
+      cmsType: municipality.cmsType || 'unknown',
+      scrapingMethod,
+      eventSelectors: selectors,
+      apiEndpoint,
+      dateFormat: municipality.dateFormat || undefined,
+      language: municipality.language,
+      requiresJavascript: municipality.requiresJavascript || municipality.ajaxPagination,
+      notes: municipality.enhancedNotes || undefined,
+    };
+  }
+
+  private mapStructuredEventsToExtracted(
+    events: StructuredMunicipalEvent[]
+  ): ExtractedEvent[] {
+    const mapped: ExtractedEvent[] = [];
+
+    for (const event of events) {
+      if (!event.startTime) {
+        continue;
+      }
+
+      mapped.push({
+        title: event.title,
+        description: event.description,
+        startDate: event.startTime,
+        endDate: event.endTime,
+        location: event.venueName || event.location,
+        url: event.url,
+        category: undefined,
+        imageUrl: undefined,
+        price: event.price,
+        organizer: event.organizer,
+      });
+    }
+
+    return mapped;
+  }
+
+  private async persistExtractedEvents(
+    events: ExtractedEvent[],
+    municipality: Municipality
+  ): Promise<Event[]> {
+    const dbEvents: Event[] = [];
+
+    for (const event of events) {
+      const dbEvent = await this.convertToDbEvent(event, municipality);
+      if (dbEvent) {
+        dbEvents.push(dbEvent);
+      }
+    }
+
+    return dbEvents;
+  }
+
+  private async updateMunicipalityAfterScrape(
+    municipality: Municipality,
+    dbEvents: Event[],
+    options: {
+      cmsType?: string;
+      selectors?: MunicipalityEventSelectors | null;
+      apiEndpoint?: string | null;
+      scrapingMethod?: string | null;
+      usedHeadless?: boolean;
+      headlessMessage?: string | null;
+    }
+  ) {
+    const data: any = {
+      lastScraped: new Date(),
+      eventCount: dbEvents.length,
+      scrapeStatus: options.usedHeadless ? 'headless-active' : 'active',
+      scrapeError: options.usedHeadless ? options.headlessMessage : null,
+    };
+
+    if (dbEvents.length > 0) {
+      data.lastSuccessful = new Date();
+      data.hasEvents = true;
+    }
+
+    if (options.cmsType) {
+      data.cmsType = options.cmsType;
+    }
+
+    if (options.selectors) {
+      data.eventSelectors = JSON.stringify(options.selectors);
+    }
+
+    if (options.apiEndpoint !== undefined) {
+      data.apiEndpoint = options.apiEndpoint;
+    }
+
+    if (options.scrapingMethod) {
+      data.scrapingMethod = options.scrapingMethod;
+    }
+
+    await this.prisma.municipality.update({
+      where: { id: municipality.id },
+      data,
+    });
+  }
+
+  private extractFromConfiguredSelectors(
+    $: cheerio.CheerioAPI,
+    selectors: MunicipalityEventSelectors,
+    municipality: Municipality
+  ): EventExtractionResult {
+    if (!selectors.container) {
+      return {
+        events: [],
+        confidence: 0,
+        method: 'cms-selectors',
+        errors: ['No container selector defined'],
+      };
+    }
+
+    const events: ExtractedEvent[] = [];
+
+    $(selectors.container).each((_, element) => {
+      const $event = $(element);
+
+      const title = this.extractTextFromSelector($event, selectors.title || 'h1, h2, h3');
+      if (!title) {
+        return;
+      }
+
+      const datetimeAttr = $event.find('time[datetime]').first().attr('datetime');
+      const dateText = this.extractTextFromSelector($event, selectors.date || '') || undefined;
+
+      let startDate: Date | null = null;
+      let endDate: Date | null = null;
+
+      if (datetimeAttr) {
+        const parsedDate = new Date(datetimeAttr);
+        if (!isNaN(parsedDate.getTime())) {
+          startDate = parsedDate;
+        }
+      }
+
+      if (!startDate && dateText) {
+        startDate = parseMunicipalDate(dateText, municipality.dateFormat || undefined);
+      }
+
+      if (!startDate && dateText) {
+        const range = this.extractDatesFromText(dateText);
+        startDate = range.start;
+        endDate = range.end;
+      }
+
+      if (!startDate) {
+        return;
+      }
+
+      const location = this.extractTextFromSelector($event, selectors.location || '.location, .ort');
+      const description = this.extractTextFromSelector($event, selectors.description || 'p');
+      const organizer = this.extractTextFromSelector($event, selectors.organizer || '.organizer');
+
+      let url: string | undefined;
+      const href = $event.find('a').first().attr('href');
+      if (href) {
+        try {
+          url = new URL(href, municipality.eventPageUrl).toString();
+        } catch (error) {
+          url = href.startsWith('http') ? href : undefined;
+        }
+      }
+
+      events.push({
+        title: title.trim(),
+        description: description || undefined,
+        startDate,
+        endDate: endDate || undefined,
+        location: location || municipality.name,
+        url,
+        organizer: organizer || undefined,
+      });
+    });
+
+    return {
+      events,
+      confidence: events.length > 0 ? 0.9 : 0,
+      method: 'cms-selectors',
+      errors: [],
+    };
+  }
+
+  private extractTextFromSelector(
+    $element: cheerio.Cheerio<any>,
+    selector?: string
+  ): string | null {
+    if (!selector) return null;
+
+    const selectors = selector.split(',').map(sel => sel.trim());
+
+    for (const sel of selectors) {
+      if (!sel) continue;
+
+      const candidate = sel === '&self' ? $element : $element.find(sel).first();
+      if (candidate && candidate.length > 0) {
+        const text = candidate.text().trim();
+        if (text) {
+          return text;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private async renderWithHeadless(url: string): Promise<string> {
+    const { chromium } = await import('playwright');
+    const browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    try {
+      const page = await browser.newPage();
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+      await page.waitForLoadState('networkidle');
+      const content = await page.content();
+      await browser.close();
+      return content;
+    } catch (error) {
+      await browser.close();
       throw error;
     }
   }
