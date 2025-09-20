@@ -216,38 +216,84 @@ app.post('/find-event-pages', async (req, res) => {
       '/kalender',
       '/termine',
     ];
+
+    function detectCms(html, url) {
+      const lower = html.toLowerCase();
+      // Quick URL-based hints
+      if (/onegov|winterthur/.test(url)) return 'onegov_cloud';
+      if (/localcities|lc-/.test(lower)) return 'localcities';
+
+      // Generator/meta and markup heuristics
+      if (lower.includes('meta name="generator" content="typo3') || lower.includes('class="tx-')) {
+        return 'typo3';
+      }
+      if (lower.includes('wp-content') || lower.includes('wp-includes') || lower.includes('meta name="generator" content="wordpress')) {
+        return 'wordpress';
+      }
+      if (lower.includes('drupal-settings-json') || lower.includes('data-drupal-selector') || lower.includes('meta name="generator" content="drupal')) {
+        return 'drupal';
+      }
+      if (lower.includes('onegov') || lower.includes('data-event-id')) {
+        return 'onegov_cloud';
+      }
+      if (lower.includes('govis') || lower.includes('content-teaser') || lower.includes('veranstaltung-item')) {
+        return 'govis';
+      }
+      return 'custom';
+    }
     
     let found = 0;
     
     for (const muni of municipalities) {
       for (const pattern of eventPatterns) {
-        const url = muni.websiteUrl + pattern;
-        
-        try {
-          console.log(`Testing ${url}...`);
-          const controller = new AbortController();
-          setTimeout(() => controller.abort(), 5000);
-          
-          const response = await fetch(url, {
-            signal: controller.signal,
-          });
-          
-          if (response.ok) {
-            await prisma.municipality.update({
-              where: { id: muni.id },
-              data: { 
-                eventPageUrl: url,
-                eventPagePattern: pattern,
-                cmsType: 'govis', // Assume GOViS for now since it's the most common
+        // Try with and without language prefixes
+        const candidates = [
+          muni.websiteUrl + pattern,
+          muni.websiteUrl + '/de' + pattern,
+          muni.websiteUrl + '/en' + pattern,
+          muni.websiteUrl + '/fr' + pattern,
+          muni.websiteUrl + '/it' + pattern,
+        ];
+
+        for (const url of candidates) {
+          try {
+            console.log(`Testing ${url}...`);
+            const controller = new AbortController();
+            setTimeout(() => controller.abort(), 7000);
+
+            const response = await fetch(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; MunicipalFinder/1.0)'
               },
+              redirect: 'follow',
+              signal: controller.signal,
             });
-            console.log(`✓ Found event page for ${muni.name}: ${url}`);
-            found++;
-            break;
+
+            if (response.ok) {
+              const html = await response.text();
+              const cmsType = detectCms(html, url);
+
+              await prisma.municipality.update({
+                where: { id: muni.id },
+                data: {
+                  eventPageUrl: url,
+                  eventPagePattern: pattern,
+                  cmsType,
+                },
+              });
+              console.log(`✓ Found event page for ${muni.name}: ${url} (cms=${cmsType})`);
+              found++;
+              throw new Error('__break_patterns');
+            }
+          } catch (error) {
+            if (error && error.message === '__break_patterns') {
+              break; // Break out of candidates loop, continue next municipality
+            }
+            // Try next candidate or next pattern
           }
-        } catch (error) {
-          // Try next pattern
         }
+        // If we found one, skip remaining patterns
+        // This is handled by the special break above
       }
     }
     
