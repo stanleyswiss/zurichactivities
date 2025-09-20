@@ -1,0 +1,242 @@
+[
+  {
+    "bfsNumber": 241,
+    "name": "Aesch",
+    "canton": "ZH",
+    "lat": 47.3333,
+    "lon": 8.4500,
+    "websiteUrl": "https://www.aesch-zh.ch",
+    "population": 1200,
+    "district": "Dietikon"
+  },
+  {
+    "bfsNumber": 242,
+    "name": "Birmensdorf",
+    "canton": "ZH", 
+    "lat": 47.3558,
+    "lon": 8.4425,
+    "websiteUrl": "https://www.birmensdorf.ch",
+    "population": 6500,
+    "district": "Dietikon"
+  },
+  {
+    "bfsNumber": 243,
+    "name": "Dietikon",
+    "canton": "ZH",
+    "lat": 47.4017,
+    "lon": 8.4040,
+    "websiteUrl": "https://www.dietikon.ch",
+    "population": 27638,
+    "district": "Dietikon"
+  },
+  {
+    "bfsNumber": 245,
+    "name": "Oberengstringen",
+    "canton": "ZH",
+    "lat": 47.4167,
+    "lon": 8.3667,
+    "websiteUrl": "https://www.oberengstringen.ch",
+    "population": 1800,
+    "district": "Dietikon"
+  },
+  {
+    "bfsNumber": 249,
+    "name": "Unterengstringen",
+    "canton": "ZH",
+    "lat": 47.4086,
+    "lon": 8.3772,
+    "websiteUrl": "https://www.unterengstringen.ch",
+    "population": 2400,
+    "district": "Dietikon"
+  },
+  {
+    "bfsNumber": 250,
+    "name": "Urdorf",
+    "canton": "ZH",
+    "lat": 47.3844,
+    "lon": 8.4247,
+    "websiteUrl": "https://www.urdorf.ch",
+    "population": 9500,
+    "district": "Dietikon"
+  },
+  {
+    "bfsNumber": 251,
+    "name": "Weiningen",
+    "canton": "ZH",
+    "lat": 47.4222,
+    "lon": 8.4306,
+    "websiteUrl": "https://www.weiningen.ch",
+    "population": 4800,
+    "district": "Dietikon"
+  },
+  {
+    "bfsNumber": 101,
+    "name": "Zürich",
+    "canton": "ZH",
+    "lat": 47.3769,
+    "lon": 8.5417,
+    "websiteUrl": "https://www.stadt-zuerich.ch",
+    "population": 447082,
+    "district": "Zürich"
+  },
+  {
+    "bfsNumber": 4001,
+    "name": "Aarau",
+    "canton": "AG",
+    "lat": 47.3909,
+    "lon": 8.0431,
+    "websiteUrl": "https://www.aarau.ch",
+    "population": 21726,
+    "district": "Aarau"
+  },
+  {
+    "bfsNumber": 4021,
+    "name": "Baden",
+    "canton": "AG",
+    "lat": 47.4759,
+    "lon": 8.3064,
+    "websiteUrl": "https://www.baden.ch",
+    "population": 19658,
+    "district": "Baden"
+  },
+  {
+    "bfsNumber": 4045,
+    "name": "Wettingen",
+    "canton": "AG",
+    "lat": 47.4656,
+    "lon": 8.3322,
+    "websiteUrl": "https://www.wettingen.ch",
+    "population": 20800,
+    "district": "Baden"
+  },
+  {
+    "bfsNumber": 4082,
+    "name": "Wohlen",
+    "canton": "AG",
+    "lat": 47.3511,
+    "lon": 8.2878,
+    "websiteUrl": "https://www.wohlen.ch",
+    "population": 16000,
+    "district": "Bremgarten"
+  },
+  {
+    "bfsNumber": 4172,
+    "name": "Brugg",
+    "canton": "AG",
+    "lat": 47.4811,
+    "lon": 8.2108,
+    "websiteUrl": "https://www.brugg.ch",
+    "population": 11500,
+    "district": "Brugg"
+  },
+  {
+    "bfsNumber": 1061,
+    "name": "Luzern",
+    "canton": "LU",
+    "lat": 47.0502,
+    "lon": 8.3093,
+    "websiteUrl": "https://www.stadtluzern.ch",
+    "population": 82257,
+    "district": "Luzern"
+  },
+  {
+    "bfsNumber": 1024,
+    "name": "Emmen",
+    "canton": "LU",
+    "lat": 47.0811,
+    "lon": 8.3008,
+    "websiteUrl": "https://www.emmen.ch",
+    "population": 30000,
+    "district": "Luzern"
+  },
+  {
+    "bfsNumber": 1059,
+    "name": "Kriens",
+    "canton": "LU",
+    "lat": 47.0361,
+    "lon": 8.2733,
+    "websiteUrl": "https://www.kriens.ch",
+    "population": 27500,
+    "district": "Luzern"
+  },
+  {
+    "bfsNumber": 1301,
+    "name": "Schwyz",
+    "canton": "SZ",
+    "lat": 47.0208,
+    "lon": 8.6528,
+    "websiteUrl": "https://www.schwyz.ch",
+    "population": 15000,
+    "district": "Schwyz"
+  },
+  {
+    "bfsNumber": 1372,
+    "name": "Einsiedeln",
+    "canton": "SZ",
+    "lat": 47.1281,
+    "lon": 8.7581,
+    "websiteUrl": "https://www.einsiedeln.ch",
+    "population": 16000,
+    "district": "Einsiedeln"
+  },
+  {
+    "bfsNumber": 1711,
+    "name": "Zug",
+    "canton": "ZG",
+    "lat": 47.1663,
+    "lon": 8.5155,
+    "websiteUrl": "https://www.zug.ch",
+    "population": 30618,
+    "district": "Zug"
+  },
+  {
+    "bfsNumber": 1701,
+    "name": "Baar",
+    "canton": "ZG",
+    "lat": 47.1967,
+    "lon": 8.5244,
+    "websiteUrl": "https://www.baar.ch",
+    "population": 24000,
+    "district": "Zug"
+  },
+  {
+    "bfsNumber": 1702,
+    "name": "Cham",
+    "canton": "ZG",
+    "lat": 47.1819,
+    "lon": 8.4644,
+    "websiteUrl": "https://www.cham.ch",
+    "population": 16500,
+    "district": "Zug"
+  },
+  {
+    "bfsNumber": 2701,
+    "name": "Basel",
+    "canton": "BS",
+    "lat": 47.5596,
+    "lon": 7.5886,
+    "websiteUrl": "https://www.basel.ch",
+    "population": 177595,
+    "district": "Basel-Stadt"
+  },
+  {
+    "bfsNumber": 2703,
+    "name": "Riehen",
+    "canton": "BS",
+    "lat": 47.5764,
+    "lon": 7.6483,
+    "websiteUrl": "https://www.riehen.ch",
+    "population": 21000,
+    "district": "Basel-Stadt"
+  },
+  {
+    "bfsNumber": 2702,
+    "name": "Bettingen",
+    "canton": "BS",
+    "lat": 47.5667,
+    "lon": 7.6667,
+    "websiteUrl": "https://www.bettingen.ch",
+    "population": 1200,
+    "district": "Basel-Stadt"
+  }
+]

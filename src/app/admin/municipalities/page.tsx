@@ -22,6 +22,8 @@ export default function MunicipalitiesAdmin() {
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'with-website' | 'with-events' | 'ready-to-scrape'>('all');
+  const [bulkLoading, setBulkLoading] = useState<string | null>(null);
+  const [bulkResults, setBulkResults] = useState<any>(null);
 
   useEffect(() => {
     fetchMunicipalities();
@@ -38,6 +40,38 @@ export default function MunicipalitiesAdmin() {
       console.error('Failed to fetch municipalities:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const runBulkVerification = async (type: 'websites' | 'event-pages', limit: number = 10) => {
+    setBulkLoading(type);
+    setBulkResults(null);
+    
+    try {
+      const response = await fetch('/api/municipalities/bulk-verify?token=randomscrape123token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type,
+          limit,
+          maxDistance: 100
+        })
+      });
+      
+      const data = await response.json();
+      setBulkResults(data);
+      
+      // Refresh municipalities list
+      await fetchMunicipalities();
+    } catch (error) {
+      setBulkResults({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setBulkLoading(null);
     }
   };
 
@@ -160,6 +194,92 @@ export default function MunicipalitiesAdmin() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Bulk Actions */}
+      <div className="bg-white shadow rounded-lg p-6 mb-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Bulk Verification</h3>
+        <div className="flex flex-wrap gap-4">
+          <button
+            onClick={() => runBulkVerification('websites', 20)}
+            disabled={bulkLoading !== null}
+            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white ${
+              bulkLoading === 'websites'
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+            }`}
+          >
+            {bulkLoading === 'websites' ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Verifying Websites...
+              </>
+            ) : (
+              'Verify Websites (20)'
+            )}
+          </button>
+
+          <button
+            onClick={() => runBulkVerification('event-pages', 15)}
+            disabled={bulkLoading !== null}
+            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white ${
+              bulkLoading === 'event-pages'
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
+            }`}
+          >
+            {bulkLoading === 'event-pages' ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Finding Event Pages...
+              </>
+            ) : (
+              'Find Event Pages (15)'
+            )}
+          </button>
+        </div>
+
+        {/* Results Display */}
+        {bulkResults && (
+          <div className="mt-4 p-4 rounded-md bg-gray-50">
+            <h4 className="text-sm font-medium text-gray-900 mb-2">
+              {bulkResults.success ? '✅ Bulk Verification Results' : '❌ Verification Failed'}
+            </h4>
+            {bulkResults.success ? (
+              <div className="text-sm text-gray-600">
+                <p><strong>Type:</strong> {bulkResults.type}</p>
+                <p><strong>Processed:</strong> {bulkResults.results?.processed || 0}</p>
+                <p><strong>Found:</strong> {bulkResults.results?.found || bulkResults.results?.verified || 0}</p>
+                <p><strong>Failed:</strong> {bulkResults.results?.failed || 0}</p>
+                {bulkResults.results?.municipalities && bulkResults.results.municipalities.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer font-medium">View Details</summary>
+                    <div className="mt-2 max-h-40 overflow-y-auto">
+                      {bulkResults.results.municipalities.map((muni: any, i: number) => (
+                        <div key={i} className="text-xs py-1">
+                          <span className={muni.success ? 'text-green-600' : 'text-red-600'}>
+                            {muni.success ? '✓' : '✗'}
+                          </span> {muni.name} ({muni.canton}) 
+                          {muni.websiteUrl && <span className="text-blue-600"> - {muni.websiteUrl}</span>}
+                          {muni.eventPageUrl && <span className="text-purple-600"> - {muni.eventPagePattern}</span>}
+                          {muni.cmsType && <span className="text-orange-600"> - {muni.cmsType}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-red-600">{bulkResults.error}</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Filter Tabs */}
