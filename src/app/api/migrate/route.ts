@@ -123,13 +123,11 @@ async function ensureDatabaseTables(prisma: PrismaClient) {
     );
   `);
 
-  // Create indexes for Municipality
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS "Municipality_canton_idx" ON "Municipality" (canton);
-    CREATE INDEX IF NOT EXISTS "Municipality_distanceFromHome_idx" ON "Municipality" ("distanceFromHome");
-    CREATE INDEX IF NOT EXISTS "Municipality_scrapeStatus_idx" ON "Municipality" ("scrapeStatus");
-    CREATE INDEX IF NOT EXISTS "Municipality_lastScraped_idx" ON "Municipality" ("lastScraped");
-  `);
+  // Create indexes for Municipality (one by one to avoid multiple commands error)
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Municipality_canton_idx" ON "Municipality" (canton)`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Municipality_distanceFromHome_idx" ON "Municipality" ("distanceFromHome")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Municipality_scrapeStatus_idx" ON "Municipality" ("scrapeStatus")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Municipality_lastScraped_idx" ON "Municipality" ("lastScraped")`);
 
   // Add municipalityId column to Event table if it doesn't exist
   await prisma.$executeRawUnsafe(`
