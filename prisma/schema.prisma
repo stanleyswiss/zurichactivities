@@ -21,6 +21,22 @@ model Municipality {
   eventPageUrl      String?
   eventPagePattern  String?   // Pattern that worked (e.g. /veranstaltungen)
   cmsType           String?   // GOViS, i-web, wordpress, custom, etc.
+  cmsVersion        String?   // CMS version if detected
+  hasEvents         Boolean   @default(false) // Whether municipality publishes events
+  scrapingMethod    String?   // api-extraction, table-extraction, list-extraction, etc.
+  eventSelectors    String?   // JSON string of CSS selectors for event extraction
+  dateFormat        String?   // Date format used (dd.mm.yyyy, etc.)
+  timeFormat        String?   // Time format used (HH:MM, etc.)
+  language          String    @default("de") // Primary language (de, fr, it)
+  multilingual      Boolean   @default(false) // Whether site supports multiple languages
+  apiEndpoint       String?   // Direct API endpoint for events if available
+  requiresJavascript Boolean  @default(false) // Whether site requires JS to load events
+  ajaxPagination    Boolean   @default(false) // Whether events load via AJAX
+  structuredData    Boolean   @default(false) // Whether site has JSON-LD or similar
+  robotsTxtCompliant Boolean @default(true) // Whether robots.txt allows scraping
+  updateFrequency   String?   // How often events are updated (daily, weekly, etc.)
+  averageEventsMonthly Int?   // Average number of events per month
+  enhancedNotes     String?   // Additional notes from enhanced research
   lat               Float
   lon               Float
   distanceFromHome  Float     // Distance from Schlieren in km
@@ -39,6 +55,9 @@ model Municipality {
   @@index([distanceFromHome])
   @@index([scrapeStatus])
   @@index([lastScraped])
+  @@index([hasEvents])
+  @@index([cmsType])
+  @@index([language])
 }
 
 model Event {
