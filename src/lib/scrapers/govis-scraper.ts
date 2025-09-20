@@ -242,10 +242,16 @@ export class GOViSScraper {
       }
     }
     
-    // Check for date range (von/bis)
+    // Check for date range (von/bis or date - date format)
     if (dateText.includes(' bis ') || dateText.includes(' - ')) {
       const parts = dateText.split(/\s*(?:bis|-)\s*/);
       if (parts.length === 2) {
+        // Parse start date if not already parsed
+        if (!start) {
+          const startDates = this.parseSwissDate(parts[0]);
+          start = startDates.start;
+        }
+        // Parse end date
         const endDates = this.parseSwissDate(parts[1]);
         end = endDates.start;
       }
@@ -266,27 +272,63 @@ export class GOViSScraper {
     // Try to find events in tables or lists
     const events: GOViSEvent[] = [];
     
-    // Check for table format
-    $('table tr').each((i, row) => {
-      if (i === 0) return; // Skip header
+    console.log(`Alternative parsing for ${municipality.name}: Looking for table rows...`);
+    
+    // Check for table format - try multiple table selectors
+    const tableSelectors = ['table tr', 'tbody tr', '.table tr', '.events-table tr'];
+    
+    for (const selector of tableSelectors) {
+      const rows = $(selector);
+      console.log(`Found ${rows.length} rows with selector: ${selector}`);
       
-      const cells = $(row).find('td');
-      if (cells.length >= 2) {
-        const dateText = cells.eq(0).text().trim();
-        const title = cells.eq(1).text().trim();
-        const location = cells.eq(2).text().trim() || municipality.name;
+      if (rows.length > 1) { // At least header + 1 data row
+        rows.each((i, row) => {
+          if (i === 0) return; // Skip header row
+          
+          const cells = $(row).find('td, th');
+          console.log(`Row ${i}: ${cells.length} cells`);
+          
+          if (cells.length >= 2) {
+            const dateText = cells.eq(0).text().trim();
+            const nameCell = cells.eq(1);
+            const title = nameCell.text().trim();
+            const location = cells.length > 2 ? cells.eq(2).text().trim() : municipality.name;
+            const organizer = cells.length > 3 ? cells.eq(3).text().trim() : '';
+            
+            // Get the URL from the name cell if it has a link
+            const eventUrl = nameCell.find('a').first().attr('href');
+            
+            console.log(`Parsing event: "${title}" on "${dateText}" at "${location}"`);
+            
+            const dates = this.parseSwissDate(dateText);
+            if (dates.start && title && title.length > 2) {
+              const event: GOViSEvent = {
+                title,
+                startDate: dates.start,
+                endDate: dates.end || undefined,
+                location,
+                description: organizer ? `Organisiert von: ${organizer}` : undefined,
+              };
+              
+              if (eventUrl) {
+                event.url = eventUrl.startsWith('http') ? eventUrl : `${municipality.websiteUrl || ''}${eventUrl}`;
+              }
+              
+              events.push(event);
+              console.log(`✓ Added event: ${title}`);
+            } else {
+              console.log(`✗ Skipped event: title="${title}", datesParsed=${!!dates.start}`);
+            }
+          }
+        });
         
-        const dates = this.parseSwissDate(dateText);
-        if (dates.start && title) {
-          events.push({
-            title,
-            startDate: dates.start,
-            endDate: dates.end || undefined,
-            location,
-          });
+        // If we found events with this selector, break
+        if (events.length > 0) {
+          console.log(`Successfully parsed ${events.length} events with selector: ${selector}`);
+          break;
         }
       }
-    });
+    }
     
     // Convert to DB events
     const dbEvents: Event[] = [];
