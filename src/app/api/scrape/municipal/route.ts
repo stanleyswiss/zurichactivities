@@ -65,9 +65,9 @@ export async function GET(request: NextRequest) {
     }
     
     return NextResponse.json({
-      ...results,
       success: true,
-      message: `Municipal scraping completed`
+      message: `Municipal scraping completed`,
+      scrapeResults: results
     });
     
   } catch (error) {
