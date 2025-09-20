@@ -116,7 +116,7 @@ export class GOViSScraper {
     }
   }
 
-  private parseGOViSEvent($: cheerio.CheerioAPI, element: cheerio.Element): GOViSEvent | null {
+  private parseGOViSEvent($: cheerio.CheerioAPI, element: cheerio.AnyNode): GOViSEvent | null {
     const $el = $(element);
     
     // Extract title
