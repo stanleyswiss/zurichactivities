@@ -304,7 +304,7 @@ export async function POST(request: NextRequest) {
       { method: 'GET' }
     );
 
-    return await this.GET(getRequest);
+    return await GET(getRequest);
 
   } catch (error) {
     console.error('Single municipality scraping error:', error);
