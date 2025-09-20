@@ -238,6 +238,7 @@ app.post('/find-event-pages', async (req, res) => {
               data: { 
                 eventPageUrl: url,
                 eventPagePattern: pattern,
+                cmsType: 'govis', // Assume GOViS for now since it's the most common
               },
             });
             console.log(`✓ Found event page for ${muni.name}: ${url}`);
@@ -266,6 +267,29 @@ app.post('/find-event-pages', async (req, res) => {
   }
 });
 
+// Update existing municipalities to set cmsType
+app.post('/update-cms-types', async (req, res) => {
+  try {
+    const updated = await prisma.municipality.updateMany({
+      where: {
+        eventPageUrl: { not: null },
+        cmsType: null
+      },
+      data: {
+        cmsType: 'govis'
+      }
+    });
+    
+    res.json({
+      success: true,
+      updated: updated.count,
+      message: `Updated ${updated.count} municipalities with cmsType: govis`
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get municipality stats
 app.get('/municipalities/stats', async (req, res) => {
   try {
@@ -276,13 +300,18 @@ app.get('/municipalities/stats', async (req, res) => {
     const withEventPage = await prisma.municipality.count({
       where: { eventPageUrl: { not: null } }
     });
+    const withGovisCms = await prisma.municipality.count({
+      where: { cmsType: 'govis' }
+    });
     
     res.json({
       total,
       withWebsite,
       withEventPage,
+      withGovisCms,
       websitePercentage: Math.round((withWebsite / total) * 100),
-      eventPagePercentage: Math.round((withEventPage / total) * 100)
+      eventPagePercentage: Math.round((withEventPage / total) * 100),
+      govisPercentage: Math.round((withGovisCms / total) * 100)
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -302,6 +331,7 @@ app.listen(port, () => {
   console.log('  POST /seed-municipalities - Seed municipality data');
   console.log('  POST /find-websites - Find municipality websites');
   console.log('  POST /find-event-pages - Find event page URLs');
+  console.log('  POST /update-cms-types - Update municipalities with cmsType: govis');
   console.log('  GET /municipalities/stats - Get statistics');
   console.log('  GET /health - Health check');
 });
