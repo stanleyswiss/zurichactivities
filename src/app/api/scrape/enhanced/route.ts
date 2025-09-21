@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { EnhancedMunicipalScraper, MunicipalityScrapingConfig, ExtractedEvent } from '@/lib/scrapers/enhanced-municipal-scraper';
+import { EnhancedMunicipalScraper } from '@/lib/scrapers/enhanced-municipal-scraper';
+import {
+  MunicipalityScrapingConfig,
+  StructuredMunicipalEvent as ExtractedEvent,
+} from '@/lib/scrapers/municipal-types';
 import { createHash } from 'crypto';
 
 function isAuthorized(request: NextRequest) {
