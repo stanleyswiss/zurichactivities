@@ -216,9 +216,10 @@ async function discoverFromSitemap(baseUrl: string): Promise<CandidateLink[]> {
     if (!response.ok) return [];
 
     const xml = await response.text();
-    const matches = xml.matchAll(/<loc>([^<]+)<\/loc>/g);
     const candidates: CandidateLink[] = [];
-    for (const match of matches) {
+    const regex = /<loc>([^<]+)<\/loc>/g;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(xml)) !== null) {
       const url = match[1];
       const score = computeKeywordScore(url, url);
       if (score > 0) {
