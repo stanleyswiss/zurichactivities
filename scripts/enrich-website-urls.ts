@@ -143,7 +143,7 @@ function toSeed(entry: RawSeed): Seed {
     canton,
     latitude: lat,
     longitude: lon,
-    website_url: entry.website_url ? String(entry.website_url) : null,
+    website_url: fallback['website_url'] ? String(fallback['website_url']) : null,
   };
 }
 
