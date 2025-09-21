@@ -404,8 +404,9 @@ export class AIMunicipalScraper {
       let url: string | undefined;
       const href = $event.find('a').first().attr('href');
       if (href) {
+        const base = municipality.eventPageUrl ?? municipality.websiteUrl ?? undefined;
         try {
-          url = new URL(href, municipality.eventPageUrl).toString();
+          url = base ? new URL(href, base).toString() : new URL(href).toString();
         } catch (error) {
           url = href.startsWith('http') ? href : undefined;
         }
