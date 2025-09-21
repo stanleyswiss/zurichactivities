@@ -80,36 +80,58 @@ function toSeed(entry: RawSeed): Seed {
     };
   }
 
-  const bfsRaw = Array.isArray(entry.gem_code) ? entry.gem_code[0] : entry.gem_code;
+  const fallback = entry as Record<string, unknown>;
+
+  const bfsSource = fallback['gem_code'];
+  const bfsRaw = Array.isArray(bfsSource) ? bfsSource[0] : bfsSource;
   if (!bfsRaw) {
     throw new Error("Missing BFS number in seed entry");
   }
 
-  const name = Array.isArray(entry.gem_name) ? entry.gem_name[0] : entry.gem_name;
+  const nameSource = fallback['gem_name'];
+  const name = Array.isArray(nameSource) ? nameSource[0] : nameSource;
   if (!name) {
     throw new Error(`Missing municipality name for BFS ${bfsRaw}`);
   }
 
-  const cantonRaw = entry.canton ?? entry.canton_abbreviation ?? (Array.isArray(entry.kan_code) ? entry.kan_code[0] : entry.kan_code);
-  const cantonName = Array.isArray(entry.kan_name) ? entry.kan_name[0] : entry.kan_name;
+  const cantonCandidate =
+    (fallback['canton'] as string | undefined) ??
+    (fallback['canton_abbreviation'] as string | undefined) ??
+    (Array.isArray(fallback['kan_code']) ? (fallback['kan_code'] as unknown[])[0] : fallback['kan_code']);
+
+  const cantonNameSource = fallback['kan_name'];
+  const cantonName = Array.isArray(cantonNameSource) ? cantonNameSource[0] : cantonNameSource;
   let canton = "";
-  if (typeof cantonRaw === "string" && CANTON_CODE_TO_ABBREV[cantonRaw]) {
-    canton = CANTON_CODE_TO_ABBREV[cantonRaw];
+  if (typeof cantonCandidate === "string" && CANTON_CODE_TO_ABBREV[cantonCandidate]) {
+    canton = CANTON_CODE_TO_ABBREV[cantonCandidate];
   } else if (typeof cantonName === "string" && cantonName.length >= 2) {
     canton = cantonName.slice(0, 2).toUpperCase();
-  } else if (typeof cantonRaw === "string" && cantonRaw.length === 2) {
-    canton = cantonRaw.toUpperCase();
+  } else if (typeof cantonCandidate === "string" && cantonCandidate.length === 2) {
+    canton = cantonCandidate.toUpperCase();
   } else {
     throw new Error(`Unable to determine canton for BFS ${bfsRaw}`);
   }
 
-  const point =
-    entry.geo_point_2d && typeof entry.geo_point_2d === "object"
-      ? entry.geo_point_2d
-      : entry.coordinates ?? entry.location ?? null;
+  const pointRaw =
+    (fallback['geo_point_2d'] as any) ??
+    (fallback['coordinates'] as any) ??
+    (fallback['location'] as any) ??
+    null;
 
-  const lat = Number(point?.lat ?? (Array.isArray(point) ? point[1] : undefined) ?? entry.latitude ?? entry.lat);
-  const lon = Number(point?.lon ?? (Array.isArray(point) ? point[0] : undefined) ?? entry.longitude ?? entry.lon);
+  const latCandidate =
+    (pointRaw && typeof pointRaw === 'object' && 'lat' in pointRaw ? (pointRaw as any).lat : undefined) ??
+    (Array.isArray(pointRaw) ? pointRaw[1] : undefined) ??
+    fallback['latitude'] ??
+    fallback['lat'];
+
+  const lonCandidate =
+    (pointRaw && typeof pointRaw === 'object' && 'lon' in pointRaw ? (pointRaw as any).lon : undefined) ??
+    (Array.isArray(pointRaw) ? pointRaw[0] : undefined) ??
+    fallback['longitude'] ??
+    fallback['lon'];
+
+  const lat = Number(latCandidate);
+  const lon = Number(lonCandidate);
 
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
     throw new Error(`Missing coordinates for BFS ${bfsRaw}`);
