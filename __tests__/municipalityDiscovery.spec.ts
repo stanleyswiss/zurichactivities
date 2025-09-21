@@ -12,7 +12,7 @@ jest.mock('@/lib/db', () => {
   };
 });
 
-import { verifyMunicipalityEventPage } from '@/app/api/municipalities/bulk-verify/route';
+import { verifyMunicipalityEventPage } from '@/app/api/municipalities/bulk-verify/helpers';
 
 jest.setTimeout(60000);
 
