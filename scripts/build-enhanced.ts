@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { chromium } from "playwright";
-import cheerio from "cheerio";
+import { load as loadHtml, CheerioAPI } from "cheerio";
 import pLimit from "p-limit";
 
 type Seed = {
@@ -96,7 +96,7 @@ function detectCMS(html: string) {
   return { type, evidence, note: note.trim() };
 }
 
-function isTable($: cheerio.CheerioAPI) {
+function isTable($: CheerioAPI) {
   return $("table tr").length >= 3 && ($("table th").length > 0 || $("table thead").length > 0);
 }
 
@@ -225,7 +225,7 @@ async function jsPass(page: any) {
             if (!response.ok()) continue;
             const html = await response.text();
             staticHtml = html;
-            const $ = cheerio.load(html);
+        const $ = loadHtml(html);
 
             const listPatterns = [
               { container: ".event-item", title: ".event-title, h2, a", date: ".event-date, time, .date", location: ".event-location, .location", description: ".event-description, p" },

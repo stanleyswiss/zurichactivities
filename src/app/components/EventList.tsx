@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Event } from '@prisma/client';
 import EventCard from './EventCard';
 import MapView from './MapView';
@@ -17,7 +17,7 @@ export default function EventList({ filters }: EventListProps) {
   const [sortBy, setSortBy] = useState<'date' | 'distance' | 'relevance'>('date');
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>('grid');
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -52,11 +52,11 @@ export default function EventList({ filters }: EventListProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.dateRange.from, filters.dateRange.to, filters.distance, filters.categories, filters.sources]);
 
   useEffect(() => {
     fetchEvents();
-  }, [filters.dateRange, filters.distance, filters.categories, filters.sources]);
+  }, [fetchEvents]);
 
   const filteredAndSortedEvents = useMemo(() => {
     let filtered = events.filter(event => {

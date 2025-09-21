@@ -1,4 +1,4 @@
-import * as cheerio from 'cheerio';
+import { load as loadHtml, CheerioAPI } from 'cheerio';
 import { ProxyAgent } from 'undici';
 import { db } from '@/lib/db';
 
@@ -162,7 +162,7 @@ async function fetchWithTimeout(url: string, timeout = 10000) {
   }
 }
 
-function collectHomepageCandidates($: cheerio.CheerioAPI, baseUrl: string, cmsHint?: string | null) {
+function collectHomepageCandidates($: CheerioAPI, baseUrl: string, cmsHint?: string | null) {
   const base = new URL(baseUrl);
   const candidates = new Map<string, CandidateLink>();
 
@@ -245,7 +245,7 @@ function buildSearchCandidates(baseUrl: string): CandidateLink[] {
   }));
 }
 
-function countSelectorMatches($: cheerio.CheerioAPI, selectors: string[]) {
+function countSelectorMatches($: CheerioAPI, selectors: string[]) {
   const matchedSelectors: string[] = [];
   let total = 0;
 
@@ -260,7 +260,7 @@ function countSelectorMatches($: cheerio.CheerioAPI, selectors: string[]) {
   return { total, matchedSelectors };
 }
 
-function hasEventJsonLd($: cheerio.CheerioAPI) {
+function hasEventJsonLd($: CheerioAPI) {
   const scripts = $('script[type="application/ld+json"]').toArray();
   for (const script of scripts) {
     const content = $(script).contents().text();
@@ -378,7 +378,7 @@ export async function verifyMunicipalityEventPage(municipality: any) {
   }
 
   const homepageHtml = await homepageResponse.text();
-  const $homepage = cheerio.load(homepageHtml);
+  const $homepage = loadHtml(homepageHtml);
   const homepageCms = detectCMSType(homepageHtml, municipality.websiteUrl);
 
   let candidates: CandidateLink[] = [];
@@ -413,7 +413,7 @@ export async function verifyMunicipalityEventPage(municipality: any) {
       }
 
       const html = await response.text();
-      const $ = cheerio.load(html);
+      const $ = loadHtml(html);
 
       let cmsType = detectCMSType(html, candidate.url);
       if ((!cmsType || cmsType === 'unknown') && homepageCms) {
