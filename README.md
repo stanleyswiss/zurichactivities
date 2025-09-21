@@ -63,6 +63,18 @@ SOURCES_ENABLED=LIMMATTAL,ST
    ```
 3. Deploy (automatic on push)
 
+### Automated Municipality Sync
+
+This repository includes a scheduled GitHub Action (`.github/workflows/municipalities.yml`) that refreshes the municipality catalogue every day at 02:00 UTC and republishes it to Vercel. Add the following repository secrets before enabling the workflow:
+
+| Secret | Example value | Purpose |
+| --- | --- | --- |
+| `RAILWAY_DATABASE_URL` | `postgresql://...` | Target PostgreSQL connection string |
+| `MUNICIPALITY_PUBLISH_URL` | `https://zurichactivities.vercel.app` | Base URL of the deployed Next.js app |
+| `MUNICIPALITY_PUBLISH_TOKEN` | `randomscrape123token` | Same token used for `/api/scrape` / `/api/municipalities/enhanced-import` |
+
+The job can also be triggered manually through the *Run workflow* button in GitHub Actions.
+
 ### Local Development
 
 ⚠️ **IMPORTANT**: Playwright scraping does NOT work locally. Test on Railway only.

@@ -1,0 +1,37 @@
+name: Sync Municipalities
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Seed municipalities into Railway
+        env:
+          DATABASE_URL: ${{ secrets.RAILWAY_DATABASE_URL }}
+          ALLOW_MUNICIPALITY_FALLBACK: 'false'
+        run: yarn seed:municipalities
+
+      - name: Publish enriched dataset to Vercel
+        env:
+          MUNICIPALITY_PUBLISH_URL: ${{ secrets.MUNICIPALITY_PUBLISH_URL }}
+          MUNICIPALITY_PUBLISH_TOKEN: ${{ secrets.MUNICIPALITY_PUBLISH_TOKEN }}
+          MUNICIPALITY_PUBLISH_BATCH: '150'
+        run: yarn publish:municipalities

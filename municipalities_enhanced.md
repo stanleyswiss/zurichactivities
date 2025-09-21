@@ -1,25 +1,40 @@
 # Swiss municipality scraping dataset overview
 
-The `scripts/seedMunicipalities.ts` utility fetches the Swiss Post municipality catalogue (with automatic fallbacks for offline environments), upserts every commune within 200 km of Schlieren into Prisma, and exports a canonical dataset that powers the JSON artefacts checked into this repository. Run it locally or on Railway with `npm run seed:municipalities` once the `DATABASE_URL` environment variable points at your database.
+The updated seeding workflow now pulls the authoritative Swiss Post catalogue directly instead of the bundled 28-row sample. When you run `yarn seed:municipalities` (locally or on Railway) the script will fetch every municipality, filter to the 200 km radius around Schlieren, upsert them into Prisma, and refresh the JSON artefacts.
 
-## Latest snapshot
+## Expected snapshot after a successful run
 
-- **Data export:** `data/municipalities-2025-09-20T16-29-51-621Z.json`
-- **Generated at:** 2025-09-20T16:29:51.621Z
-- **Municipalities stored:** 28 (within 200 km of Schlieren)
-- **Verified event sources (URL + selectors present):** 2
+- **Source API:** `https://public.opendatasoft.com` (`georef-switzerland-gemeinde` dataset, refined to year 2025)
+- **Municipalities stored:** ~2,060 within 200 km of Schlieren (2,058 as of 2025-09-20)
+- **Verified event sources (URL + selectors present):** 17 after the latest publish run – add more via `enhanced_sample.json`
+- **Generated artefacts:**
+  - `data/municipalities-<timestamp>.json`
+  - `real_municipalities.json`
+  - `verified_municipalities.json`
+  - `municipality_sample_enhanced.json`
 
-The `real_municipalities.json` file mirrors the latest snapshot so other tooling can depend on a stable path, while `verified_municipalities.json` isolates the communes that already have working event pages, CMS attribution, and selectors. A compact preview of those enriched rows lives in `municipality_sample_enhanced.json` for quick inspection and documentation examples.
+If the Swiss Post request fails the script now aborts rather than silently re-seeding the sample. You can temporarily set `ALLOW_MUNICIPALITY_FALLBACK=true` when you explicitly want to reuse the bundled 28-row dataset.
 
-## CMS distribution
+## Deploying the data to Vercel / Railway
 
-| CMS type | Count | Share |
-| --- | ---: | ---: |
-| Unknown / not yet analysed | 26 | 92.9% |
-| Custom | 1 | 3.6% |
-| TYPO3 | 1 | 3.6% |
+1. **Seed the database** (with `DATABASE_URL` pointing at the target Postgres instance):
+   ```bash
+   yarn seed:municipalities
+   ```
+2. **Publish the enriched payload** to the hosted Next.js API once the seed completes:
+   ```bash
+   MUNICIPALITY_PUBLISH_URL="https://your-app.vercel.app" \
+   MUNICIPALITY_PUBLISH_TOKEN="<SCRAPE_TOKEN>" \
+   yarn publish:municipalities
+   ```
+   The script streams the payload in batches to `/api/municipalities/enhanced-import`, so Railway/Vercel receive the same canonical data stored locally.
+3. **Verify counts** via the `/api/health` endpoint or Prisma studio – you should see ~2,060 municipalities with 17 verified event pages after the current run.
 
-Two municipalities already have validated event pipelines (Schlieren on TYPO3 and the custom Zürich deployment). As additional communes are verified the script will automatically refresh these aggregates.
+## Troubleshooting
+
+- **Swiss Post outage / DNS issues:** Run the seed again once connectivity is restored. The deployment will now surface the failure instead of hiding it behind the sample dataset.
+- **Body too large when publishing:** Adjust `MUNICIPALITY_PUBLISH_BATCH` (default 200) to send smaller chunks.
+- **Need to work offline:** Set `ALLOW_MUNICIPALITY_FALLBACK=true` and optionally point `MUNICIPALITY_PUBLISH_SOURCE` at a cached JSON export.
 
 ## Verified municipalities (excerpt)
 
@@ -28,10 +43,4 @@ Two municipalities already have validated event pipelines (Schlieren on TYPO3 an
 | 247 | Schlieren (ZH) | TYPO3 | https://www.schlieren.ch/de/aktuelles/veranstaltungen/ |
 | 261 | Zürich (ZH) | Custom | https://www.stadt-zuerich.ch/de/aktuell/veranstaltungen.html |
 
-Refer to `verified_municipalities.json` for the full enriched payload (including scraping selectors, JS requirements, structured data flags, and update frequency metadata).
-
-## Refresh workflow
-
-1. Ensure `DATABASE_URL` is configured (locally or on Railway) and run `npm install` once to install dependencies.
-2. Execute `npm run seed:municipalities` to fetch (or fall back to the bundled sample), upsert, and re-export the dataset.
-3. Commit the regenerated JSON files under the repository root and `data/` together with any documentation updates so the statistics above always reflect the stored data.
+Add additional selectors to `enhanced_sample.json` to expand the verified cohort – the seed script automatically incorporates any new BFS entries it finds there.

@@ -71,16 +71,29 @@ async function main() {
 
   const service = new SwissMunicipalityService(prisma);
 
-  console.log('Starting Swiss municipality seed with maxDistance=200km...');
-  const seedResult = await service.fetchAndStoreMunicipalities(200);
-  console.log('Municipality seeding complete:', seedResult);
+  const allowFallback = process.env.ALLOW_MUNICIPALITY_FALLBACK === 'true';
 
-  if (!seedResult || seedResult.total === 0) {
+  console.log('Starting Swiss municipality seed with maxDistance=200km...');
+  let seedResult;
+  try {
+    seedResult = await service.fetchAndStoreMunicipalities(200);
+    console.log('Municipality seeding complete:', seedResult);
+  } catch (error) {
+    if (!allowFallback) {
+      throw error;
+    }
+
     console.warn(
-      'Swiss Post dataset returned no rows. Falling back to local import_municipalities.json sample set.'
+      'Swiss municipality seed failed – attempting to fall back to bundled sample dataset because ALLOW_MUNICIPALITY_FALLBACK=true'
     );
-    const fallbackResult = await seedFromLocalDataset(200);
-    console.log('Fallback seeding complete:', fallbackResult);
+    seedResult = await seedFromLocalDataset(200);
+    console.log('Fallback seeding complete:', seedResult);
+  }
+
+  if ((!seedResult || seedResult.stored === 0) && !allowFallback) {
+    throw new Error(
+      'Swiss Post dataset returned no rows and fallback is disabled. Set ALLOW_MUNICIPALITY_FALLBACK=true to reuse the sample set temporarily.'
+    );
   }
 
   const exportResult = await exportMunicipalities();

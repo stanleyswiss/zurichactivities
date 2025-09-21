@@ -6,12 +6,49 @@ const SCHLIEREN_COORDS = {
   lon: parseFloat(process.env.NEXT_PUBLIC_SCHLIEREN_LON || '8.447'),
 };
 
+const CANTON_CODE_TO_ABBREV: Record<string, string> = {
+  '1': 'ZH',
+  '01': 'ZH',
+  '2': 'BE',
+  '02': 'BE',
+  '3': 'LU',
+  '03': 'LU',
+  '4': 'UR',
+  '04': 'UR',
+  '5': 'SZ',
+  '05': 'SZ',
+  '6': 'OW',
+  '06': 'OW',
+  '7': 'NW',
+  '07': 'NW',
+  '8': 'GL',
+  '08': 'GL',
+  '9': 'ZG',
+  '09': 'ZG',
+  '10': 'FR',
+  '11': 'SO',
+  '12': 'BS',
+  '13': 'BL',
+  '14': 'SH',
+  '15': 'AR',
+  '16': 'AI',
+  '17': 'SG',
+  '18': 'GR',
+  '19': 'AG',
+  '20': 'TG',
+  '21': 'TI',
+  '22': 'VD',
+  '23': 'VS',
+  '24': 'NE',
+  '25': 'GE',
+  '26': 'JU',
+};
+
 interface SwissPostMunicipality {
   bfsNr: number;
   gemeindename: string;
   kanton: string;
   bezirk?: string;
-  plz?: string;
   latitude?: number;
   longitude?: number;
 }
@@ -36,22 +73,25 @@ export class SwissMunicipalityService {
 
   async fetchAndStoreMunicipalities(maxDistance: number = 200) {
     console.log(`Fetching Swiss municipalities within ${maxDistance}km of Schlieren...`);
-    
+
     try {
-      // Try Swiss Post API first
       const municipalities = await this.fetchFromSwissPost();
-      
+
       if (!municipalities || municipalities.length === 0) {
-        console.log('Swiss Post API failed, trying OpenData.swiss...');
-        // Fallback to other sources if needed
-        return await this.fetchFromOpenDataSwiss();
+        throw new Error(
+          'Swiss Post API returned no municipalities. Aborting seed so deployment can surface the failure.'
+        );
       }
 
-      // Filter by distance and store
       let stored = 0;
       let skipped = 0;
-      
+
       for (const muni of municipalities) {
+        if (!Number.isFinite(muni.bfsNr)) {
+          skipped++;
+          continue;
+        }
+
         if (!muni.latitude || !muni.longitude) {
           skipped++;
           continue;
@@ -78,9 +118,10 @@ export class SwissMunicipalityService {
         }
       }
 
-      console.log(`Stored ${stored} municipalities within ${maxDistance}km (skipped ${skipped} without coordinates)`);
+      console.log(
+        `Stored ${stored} municipalities within ${maxDistance}km (skipped ${skipped} without coordinates)`
+      );
       return { stored, skipped, total: municipalities.length };
-      
     } catch (error) {
       console.error('Error fetching municipalities:', error);
       throw error;
@@ -88,30 +129,82 @@ export class SwissMunicipalityService {
   }
 
   private async fetchFromSwissPost(): Promise<SwissPostMunicipality[]> {
+    const pageSize = 100;
+    const baseUrl = 'https://public.opendatasoft.com/api/v2/catalog/datasets/georef-switzerland-gemeinde/records';
+    const targetYear = process.env.SWISS_MUNICIPALITY_YEAR ?? '2025';
+
+    const collected: SwissPostMunicipality[] = [];
+
     try {
-      // Swiss Post provides a list of all municipalities with PLZ
-      const response = await fetch(
-        'https://swisspost.opendatasoft.com/api/records/1.0/search/?dataset=politische-gemeinden_v2&rows=3000&facet=kanton'
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Swiss Post API error: ${response.status}`);
+      let offset = 0;
+      let total = Infinity;
+
+      while (offset < total) {
+        const url = new URL(baseUrl);
+        url.searchParams.set('limit', String(pageSize));
+        url.searchParams.set('offset', String(offset));
+        url.searchParams.set('timezone', 'UTC');
+        url.searchParams.set('refine.year', targetYear);
+
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          const errorBody = await response.text();
+          throw new Error(`Swiss Post API error: ${response.status} – ${errorBody}`);
+        }
+
+        const data = await response.json();
+        const records = data.records ?? [];
+
+        if (records.length === 0) {
+          break;
+        }
+
+        total = data.total_count ?? total;
+
+        for (const entry of records) {
+          const fields = entry.record?.fields ?? {};
+          const bfsRaw = Array.isArray(fields.gem_code) ? fields.gem_code[0] : fields.gem_code;
+          const bfsNr = Number.parseInt(bfsRaw, 10);
+
+          if (!Number.isFinite(bfsNr)) {
+            continue;
+          }
+
+          const name = this.extractStringField(fields.gem_name) ?? String(bfsNr);
+          const canton =
+            this.resolveCantonAbbrev(fields.kan_code) ??
+            this.extractStringField(fields.kan_name) ??
+            'Unknown';
+          const district = this.extractStringField(fields.bez_name);
+          const point = fields.geo_point_2d;
+          const latitude = point?.lat ?? (Array.isArray(point) ? point[0] : undefined);
+          const longitude = point?.lon ?? (Array.isArray(point) ? point[1] : undefined);
+
+          collected.push({
+            bfsNr,
+            gemeindename: name,
+            kanton: canton,
+            bezirk: district ?? undefined,
+            latitude,
+            longitude,
+          });
+        }
+
+        offset += pageSize;
       }
 
-      const data = await response.json();
-      
-      return data.records.map((record: any) => ({
-        bfsNr: record.fields.bfsnr,
-        gemeindename: record.fields.gemeindename,
-        kanton: record.fields.kanton,
-        bezirk: record.fields.bezirk,
-        plz: record.fields.plz,
-        latitude: record.fields.geo_point_2d?.[0],
-        longitude: record.fields.geo_point_2d?.[1],
-      }));
+      const deduped = new Map<number, SwissPostMunicipality>();
+      for (const muni of collected) {
+        if (Number.isFinite(muni.bfsNr)) {
+          deduped.set(muni.bfsNr, muni);
+        }
+      }
+
+      return Array.from(deduped.values());
     } catch (error) {
       console.error('Swiss Post API error:', error);
-      return [];
+      throw error;
     }
   }
 
@@ -180,6 +273,28 @@ export class SwissMunicipalityService {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
       .replace(/[^a-z0-9]/g, ''); // Keep only alphanumeric
+  }
+
+  private resolveCantonAbbrev(value: unknown): string | undefined {
+    const raw = Array.isArray(value) ? value[0] : value;
+    if (typeof raw !== 'string') {
+      return undefined;
+    }
+
+    const trimmed = raw.replace(/^0+/, '') || raw;
+    return CANTON_CODE_TO_ABBREV[trimmed] ?? CANTON_CODE_TO_ABBREV[raw];
+  }
+
+  private extractStringField(value: unknown): string | undefined {
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    if (Array.isArray(value) && typeof value[0] === 'string') {
+      return value[0];
+    }
+
+    return undefined;
   }
 
   async findWebsitePatterns() {
