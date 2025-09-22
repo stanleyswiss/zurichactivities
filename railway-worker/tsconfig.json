@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "baseUrl": "./",
+    "rootDir": "../src",
+    "outDir": "./build"
+  },
+  "include": ["../src/lib/**/*.ts"],
+  "exclude": ["../src/lib/**/__tests__"]
+}
