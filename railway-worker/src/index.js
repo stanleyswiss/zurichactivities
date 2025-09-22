@@ -5,9 +5,7 @@ const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const crypto = require('crypto');
 const { chromium } = require('playwright');
-const path = require('path');
-const sharedLib = path.resolve(__dirname, '../shared-lib');
-const { AIMunicipalScraper } = require(path.join(sharedLib, 'dist', 'scrapers', 'ai-municipal-scraper'));
+const { AIMunicipalScraper } = require('../shared-lib/scrapers/ai-municipal-scraper');
 
 const app = express();
 const port = process.env.PORT || 3000;
