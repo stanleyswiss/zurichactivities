@@ -82,7 +82,6 @@ export class AIMunicipalScraper {
           await this.updateMunicipalityAfterScrape(municipality, apiResult.dbEvents, {
             cmsType: cmsForUpdate,
             selectors,
-            apiEndpoint,
             scrapingMethod,
             usedHeadless: false,
             headlessMessage: null,
@@ -169,7 +168,6 @@ export class AIMunicipalScraper {
       await this.updateMunicipalityAfterScrape(municipality, dbEvents, {
         cmsType: detectedCmsType,
         selectors,
-        apiEndpoint,
         scrapingMethod,
         usedHeadless,
         headlessMessage,
@@ -306,7 +304,6 @@ export class AIMunicipalScraper {
     options: {
       cmsType?: string;
       selectors?: MunicipalityEventSelectors | null;
-      apiEndpoint?: string | null;
       scrapingMethod?: string | null;
       usedHeadless?: boolean;
       headlessMessage?: string | null;
@@ -330,10 +327,6 @@ export class AIMunicipalScraper {
 
     if (options.selectors) {
       data.eventSelectors = JSON.stringify(options.selectors);
-    }
-
-    if (options.apiEndpoint !== undefined) {
-      data.apiEndpoint = options.apiEndpoint;
     }
 
     if (options.scrapingMethod) {
