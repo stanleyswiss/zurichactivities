@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist/shared-lib",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "es2019",
+    "jsx": "react-jsx",
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "isolatedModules": false
+  },
+  "include": ["src/lib/**/*"],
+  "exclude": ["src/lib/**/__tests__"]
+}
