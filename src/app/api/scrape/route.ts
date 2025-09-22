@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { eventScheduler } from '@/lib/scheduler';
+import { runMunicipalScrape } from '@/lib/municipal-scrape-runner';
 
 function isAuthorized(request: NextRequest) {
   const token = process.env.SCRAPE_TOKEN;
@@ -46,22 +46,12 @@ export async function POST(request: NextRequest) {
     const maxDistance = parseInt(body?.maxDistance ?? '100', 10) || 100;
     
     // Run municipal scrapers
-    const results = await eventScheduler.runMunicipalScrapers(limit, maxDistance);
-
-    const totalFound = results.reduce((sum, r) => sum + r.eventsFound, 0);
-    const totalSaved = results.reduce((sum, r) => sum + r.eventsSaved, 0);
-    const successfulSources = results.filter(r => r.success).length;
+    const { results, summary } = await runMunicipalScrape(limit, maxDistance);
 
     return NextResponse.json({
-      success: successfulSources > 0,
+      success: summary.sources_successful > 0,
       results,
-      summary: {
-        sources_attempted: results.length,
-        sources_successful: successfulSources,
-        total_events_found: totalFound,
-        total_events_saved: totalSaved,
-        municipalities_scraped: results[0]?.municipalitiesScraped || 0
-      }
+      summary,
     });
   } catch (error) {
     console.error('Scrape API error:', error);
@@ -82,22 +72,12 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '5', 10), 10);
     const maxDistance = parseInt(searchParams.get('maxDistance') || '100', 10);
 
-    const results = await eventScheduler.runMunicipalScrapers(limit, maxDistance);
-
-    const totalFound = results.reduce((sum, r) => sum + r.eventsFound, 0);
-    const totalSaved = results.reduce((sum, r) => sum + r.eventsSaved, 0);
-    const successfulSources = results.filter(r => r.success).length;
+    const { results, summary } = await runMunicipalScrape(limit, maxDistance);
 
     return NextResponse.json({
-      success: successfulSources > 0,
+      success: summary.sources_successful > 0,
       results,
-      summary: {
-        sources_attempted: results.length,
-        sources_successful: successfulSources,
-        total_events_found: totalFound,
-        total_events_saved: totalSaved,
-        municipalities_scraped: results[0]?.municipalitiesScraped || 0
-      }
+      summary,
     });
   } catch (error) {
     console.error('Scrape API GET error:', error);

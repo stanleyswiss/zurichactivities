@@ -1,8 +1,11 @@
+require('ts-node/register');
+
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const crypto = require('crypto');
 const { chromium } = require('playwright');
+const { AIMunicipalScraper } = require('../../src/lib/scrapers/ai-municipal-scraper');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -13,6 +16,70 @@ const prisma = new PrismaClient();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Helper to authorise worker-triggered requests
+function isWorkerAuthorized(req) {
+  const expected = process.env.WORKER_TOKEN || process.env.RAILWAY_WORKER_TOKEN;
+  if (!expected) return true;
+  const headerToken = req.headers['x-worker-token'];
+  const bodyToken = req.body && req.body.token;
+  return headerToken === expected || bodyToken === expected;
+}
+
+function parsePositiveInt(value, fallback) {
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+app.post('/scrape-municipalities', async (req, res) => {
+  if (!isWorkerAuthorized(req)) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  const limit = Math.max(1, Math.min(parsePositiveInt(req.body?.limit, 10), 50));
+  const maxDistance = parsePositiveInt(req.body?.maxDistance, 200);
+
+  const scraper = new AIMunicipalScraper(prisma);
+  const started = Date.now();
+
+  try {
+    const result = await scraper.scrapeMultipleMunicipalities(limit, maxDistance);
+    const duration = Date.now() - started;
+
+    res.json({
+      success: true,
+      totalEvents: result.totalEvents,
+      succeeded: result.success,
+      failed: result.failed,
+      municipalitiesScraped: result.success + result.failed,
+      duration,
+      results: [
+        {
+          source: 'MUNICIPAL',
+          success: result.success > 0,
+          eventsFound: result.totalEvents,
+          eventsSaved: result.totalEvents,
+          duration,
+          municipalitiesScraped: result.success + result.failed,
+          failed: result.failed,
+        },
+      ],
+      summary: {
+        sources_attempted: 1,
+        sources_successful: result.success > 0 ? 1 : 0,
+        total_events_found: result.totalEvents,
+        total_events_saved: result.totalEvents,
+        municipalities_scraped: result.success + result.failed,
+      },
+    });
+  } catch (error) {
+    console.error('Worker municipal scrape failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
 
 // Health check
 app.get('/health', (req, res) => {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { eventScheduler } from '@/lib/scheduler';
+import { runMunicipalScrape } from '@/lib/municipal-scrape-runner';
 
 function isAuthorized(request: NextRequest) {
   const token = process.env.SCRAPE_TOKEN;
@@ -34,9 +34,10 @@ async function handle(request: NextRequest) {
     }
   } catch {}
 
-  const results = await eventScheduler.runAllScrapers(sourcesToRun, true);
-  const totalFound = results.reduce((s, r) => s + r.eventsFound, 0);
-  const totalSaved = results.reduce((s, r) => s + r.eventsSaved, 0);
+  const limit = parseInt(request.nextUrl.searchParams.get('limit') || '10', 10) || 10;
+  const maxDistance = parseInt(request.nextUrl.searchParams.get('maxDistance') || '200', 10) || 200;
+
+  const { results, summary } = await runMunicipalScrape(limit, maxDistance);
 
   return NextResponse.json({
     success: true,
@@ -44,8 +45,8 @@ async function handle(request: NextRequest) {
     deleted_cache: deletedCache.count,
     scrape: {
       sources: sourcesToRun,
-      found: totalFound,
-      saved: totalSaved,
+      found: summary.total_events_found,
+      saved: summary.total_events_saved,
       per_source: results.map(r => ({ source: r.source, found: r.eventsFound, saved: r.eventsSaved, ok: r.success, ms: r.duration, error: r.error }))
     }
   });
