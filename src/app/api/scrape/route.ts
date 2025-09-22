@@ -35,8 +35,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const body = await request.json();
-    const { limit = 50, maxDistance = 100 } = body;
+    let body: any = {};
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
+    }
+
+    const limit = Math.min(parseInt(body?.limit ?? '0', 10) || 5, 10);
+    const maxDistance = parseInt(body?.maxDistance ?? '100', 10) || 100;
     
     // Run municipal scrapers
     const results = await eventScheduler.runMunicipalScrapers(limit, maxDistance);
@@ -72,8 +79,8 @@ export async function GET(request: NextRequest) {
     }
     
     const { searchParams } = request.nextUrl;
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const maxDistance = parseInt(searchParams.get('maxDistance') || '100');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '5', 10), 10);
+    const maxDistance = parseInt(searchParams.get('maxDistance') || '100', 10);
 
     const results = await eventScheduler.runMunicipalScrapers(limit, maxDistance);
 

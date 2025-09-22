@@ -31,12 +31,29 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          // Omit sources to use server-side default from SOURCES_ENABLED env
-          force: false
+          // Keep batches small so the serverless function stays within limits
+          limit: 5,
+          maxDistance: 120,
+          force: false,
         })
       });
 
-      const results = await response.json();
+      const text = await response.text();
+      let results: any;
+      try {
+        results = JSON.parse(text);
+      } catch {
+        results = {
+          success: false,
+          error: text?.slice(0, 200) || 'Unexpected response from scraper',
+        };
+      }
+
+      if (!response.ok) {
+        results.success = false;
+        results.error = results.error || `Scrape failed (${response.status})`;
+      }
+
       setScrapeResults(results);
     } catch (error) {
       setScrapeResults({

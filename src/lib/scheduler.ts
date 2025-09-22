@@ -39,7 +39,7 @@ export class EventScheduler {
   }
 
   async runMunicipalScrapers(
-    limit: number = 50, 
+    limit: number = 5, 
     maxDistance: number = 100,
     cmsType: string = 'all'
   ): Promise<ScraperResult[]> {
@@ -51,13 +51,15 @@ export class EventScheduler {
     const startTime = Date.now();
     const results: ScraperResult[] = [];
 
+    const normalizedLimit = Math.max(1, Math.min(limit, 10));
+
     try {
-      console.log(`Starting municipal scrape: ${limit} municipalities within ${maxDistance}km`);
+      console.log(`Starting municipal scrape: ${normalizedLimit} municipalities within ${maxDistance}km`);
 
       // Use AI-powered municipal scraper with proper database connection handling
       try {
         const aiScraper = new AIMunicipalScraper(db);
-        const result = await aiScraper.scrapeMultipleMunicipalities(limit, maxDistance);
+        const result = await aiScraper.scrapeMultipleMunicipalities(normalizedLimit, maxDistance);
 
         results.push({
           source: 'MUNICIPAL',
