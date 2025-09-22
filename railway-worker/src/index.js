@@ -1,4 +1,4 @@
-require('ts-node/register');
+require('ts-node/register/transpile-only');
 
 const express = require('express');
 const cors = require('cors');
