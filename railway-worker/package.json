@@ -13,9 +13,7 @@
     "cheerio": "^1.0.0-rc.12",
     "prisma": "^5.0.0",
     "cors": "^2.8.5",
-    "playwright": "^1.44.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.4.5"
+    "playwright": "^1.44.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

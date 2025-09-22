@@ -1,5 +1,3 @@
-require('ts-node/register/transpile-only');
-
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
