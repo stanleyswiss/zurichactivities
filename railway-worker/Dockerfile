@@ -6,6 +6,8 @@ RUN apt-get update && apt-get install -y openssl libssl-dev && rm -rf /var/lib/a
 WORKDIR /app
 
 COPY package*.json ./
+COPY scripts ./scripts/
+COPY shared-lib ./shared-lib/
 RUN npm install --only=production \
     && npx playwright install-deps chromium \
     && npx playwright install chromium
