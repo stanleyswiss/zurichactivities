@@ -1,11 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 
 const projectRoot = path.resolve(__dirname, '../..');
 const source = path.join(projectRoot, 'src/lib');
 const destination = path.resolve(__dirname, '../shared-lib');
-const tsconfigPath = path.resolve(__dirname, '../tsconfig.json');
 
 if (!fs.existsSync(source)) {
   console.warn('[worker] Shared library source not found at', source);
@@ -37,17 +35,4 @@ function copyRecursive(src, dest) {
 
 copyRecursive(source, destination);
 
-if (fs.existsSync(tsconfigPath)) {
-  console.log('[worker] Compiling shared lib to CJS ...');
-  try {
-    execSync('npx tsc --project tsconfig.json --outDir shared-lib/dist', {
-      cwd: path.resolve(__dirname, '..'),
-      stdio: 'inherit',
-    });
-    console.log('[worker] TypeScript compilation finished');
-  } catch (error) {
-    console.warn('[worker] TypeScript compilation failed:', error.message);
-  }
-}
-
-console.log('[worker] Shared lib ready');
+console.log('[worker] Shared lib copied');
